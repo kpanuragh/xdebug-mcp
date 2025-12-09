@@ -10,7 +10,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig } from './config.js';
 import { DbgpServer } from './dbgp/server.js';
 import { SessionManager } from './session/manager.js';
-import { registerAllTools, createToolsContext } from './tools/index.js';
+import { registerAllTools, createToolsContext, ToolsContext } from './tools/index.js';
 import { logger } from './utils/logger.js';
 
 async function main() {
@@ -27,6 +27,9 @@ async function main() {
     commandTimeout: config.commandTimeout,
   });
 
+  // Create tools context early so we can access pendingBreakpoints
+  const toolsContext: ToolsContext = createToolsContext(sessionManager);
+
   // Handle new Xdebug connections
   dbgpServer.on('connection', async (connection) => {
     logger.info(`New Xdebug connection: ${connection.id}`);
@@ -36,6 +39,14 @@ async function main() {
     try {
       const session = await sessionManager.createSession(connection);
       logger.info(`Debug session created: ${session.id}`);
+
+      // Apply pending breakpoints to the new session
+      const pendingCount = toolsContext.pendingBreakpoints.count;
+      if (pendingCount > 0) {
+        logger.info(`Applying ${pendingCount} pending breakpoints to session ${session.id}...`);
+        const applied = await toolsContext.pendingBreakpoints.applyToSession(session);
+        logger.info(`Applied ${applied.length} breakpoints to session ${session.id}`);
+      }
     } catch (error) {
       logger.error('Failed to create session:', error);
       connection.close();
@@ -49,6 +60,8 @@ async function main() {
   // Track session events
   sessionManager.on('sessionEnded', (sessionId) => {
     logger.info(`Session ended: ${sessionId}`);
+    // Clear applied breakpoints mapping for this session
+    toolsContext.pendingBreakpoints.clearSessionBreakpoints(sessionId);
   });
 
   // Start DBGp server
@@ -65,9 +78,6 @@ async function main() {
     name: 'xdebug-mcp',
     version: '1.0.0',
   });
-
-  // Create tools context with all managers
-  const toolsContext = createToolsContext(sessionManager);
 
   // Load saved debug profiles
   try {

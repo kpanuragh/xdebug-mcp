@@ -1,11 +1,11 @@
 {
   "name": "xdebug-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "MCP server for PHP Xdebug debugging - enables AI-assisted PHP debugging through the Model Context Protocol",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "xdebug-mcp": "./dist/index.js"
+    "xdebug-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

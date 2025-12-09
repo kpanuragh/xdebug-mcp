@@ -160,12 +160,14 @@ services:
 
 | Tool | Description |
 |------|-------------|
-| `set_breakpoint` | Set a line or conditional breakpoint |
-| `set_exception_breakpoint` | Break on exceptions |
-| `set_call_breakpoint` | Break on function calls |
-| `remove_breakpoint` | Remove a breakpoint |
+| `set_breakpoint` | Set a line or conditional breakpoint (supports pending breakpoints) |
+| `set_exception_breakpoint` | Break on exceptions (supports pending breakpoints) |
+| `set_call_breakpoint` | Break on function calls (supports pending breakpoints) |
+| `remove_breakpoint` | Remove a breakpoint (works with pending breakpoints) |
 | `update_breakpoint` | Enable/disable or modify a breakpoint |
-| `list_breakpoints` | List all breakpoints |
+| `list_breakpoints` | List all breakpoints including pending |
+
+**Pending Breakpoints**: You can set breakpoints before a debug session starts. These are stored as "pending breakpoints" and automatically applied when a PHP script connects with Xdebug. This is useful for setting up breakpoints before triggering a page load or script execution.
 
 ### Execution Control
 

@@ -12,6 +12,7 @@ import { StepFilter } from '../session/step-filter.js';
 import { DebugConfigManager } from '../session/debug-config.js';
 import { CodeCoverageTracker } from '../session/code-coverage.js';
 import { SessionExporter } from '../session/session-export.js';
+import { PendingBreakpointsManager } from '../session/pending-breakpoints.js';
 import { registerSessionTools } from './session.js';
 import { registerBreakpointTools } from './breakpoints.js';
 import { registerExecutionTools } from './execution.js';
@@ -28,6 +29,7 @@ export interface ToolsContext {
   configManager: DebugConfigManager;
   coverageTracker: CodeCoverageTracker;
   sessionExporter: SessionExporter;
+  pendingBreakpoints: PendingBreakpointsManager;
 }
 
 export function createToolsContext(sessionManager: SessionManager): ToolsContext {
@@ -41,6 +43,7 @@ export function createToolsContext(sessionManager: SessionManager): ToolsContext
     configManager: new DebugConfigManager(),
     coverageTracker: new CodeCoverageTracker(),
     sessionExporter: new SessionExporter(),
+    pendingBreakpoints: new PendingBreakpointsManager(),
   };
 }
 
@@ -50,7 +53,7 @@ export function registerAllTools(
 ): void {
   // Core debugging tools
   registerSessionTools(server, ctx.sessionManager);
-  registerBreakpointTools(server, ctx.sessionManager);
+  registerBreakpointTools(server, ctx.sessionManager, ctx.pendingBreakpoints);
   registerExecutionTools(server, ctx.sessionManager);
   registerInspectionTools(server, ctx.sessionManager);
 

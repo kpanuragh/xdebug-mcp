@@ -8,3 +8,4 @@ export * from './step-filter.js';
 export * from './debug-config.js';
 export * from './code-coverage.js';
 export * from './session-export.js';
+export * from './pending-breakpoints.js';
