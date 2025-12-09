@@ -96,15 +96,43 @@ async function main() {
   logger.info('MCP server connected via stdio');
 
   // Graceful shutdown
+  let isShuttingDown = false;
   const shutdown = async () => {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
     logger.info('Shutting down...');
     sessionManager.closeAllSessions();
     await dbgpServer.stop();
     process.exit(0);
   };
 
+  // Handle various shutdown signals
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
+
+  // Handle stdin close (when parent process like Claude Code exits)
+  process.stdin.on('close', () => {
+    logger.info('stdin closed, shutting down...');
+    shutdown();
+  });
+
+  process.stdin.on('end', () => {
+    logger.info('stdin ended, shutting down...');
+    shutdown();
+  });
+
+  // Handle uncaught errors gracefully
+  process.on('uncaughtException', async (error) => {
+    logger.error('Uncaught exception:', error);
+    await shutdown();
+  });
+
+  process.on('unhandledRejection', async (reason) => {
+    logger.error('Unhandled rejection:', reason);
+    await shutdown();
+  });
 
   // Keep the process alive
   logger.info('Xdebug MCP Server is ready');

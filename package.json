@@ -1,6 +1,6 @@
 {
   "name": "xdebug-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "mcpName": "io.github.kpanuragh/xdebug",
   "description": "MCP server for PHP Xdebug debugging - enables AI-assisted PHP debugging through the Model Context Protocol",
   "type": "module",
