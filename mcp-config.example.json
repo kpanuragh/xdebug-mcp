@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "node",
+      "args": ["/home/power/Projects/xdebug-mcp/dist/index.js"],
+      "env": {
+        "XDEBUG_PORT": "9003",
+        "XDEBUG_HOST": "0.0.0.0",
+        "LOG_LEVEL": "info",
+        "PATH_MAPPINGS": "{\"/var/www/html\": \"/home/power/projects/myapp\"}"
+      }
+    }
+  }
+}
