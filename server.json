@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.kpanuragh/xdebug",
+  "description": "MCP server for PHP Xdebug debugging with breakpoints, stepping, and variable inspection",
+  "repository": {
+    "url": "https://github.com/kpanuragh/xdebug-mcp",
+    "source": "github"
+  },
+  "version": "1.0.2",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "xdebug-mcp",
+      "version": "1.0.2",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
