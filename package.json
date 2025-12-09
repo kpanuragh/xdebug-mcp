@@ -1,7 +1,7 @@
 {
   "name": "xdebug-mcp",
   "version": "1.0.0",
-  "description": "MCP server for PHP Xdebug debugging",
+  "description": "MCP server for PHP Xdebug debugging - enables AI-assisted PHP debugging through the Model Context Protocol",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -10,17 +10,36 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
+    "model-context-protocol",
     "xdebug",
     "php",
     "debug",
-    "debugger"
+    "debugger",
+    "claude",
+    "ai",
+    "debugging",
+    "dbgp"
   ],
-  "author": "",
+  "author": "kpanuragh",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kpanuragh/xdebug-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kpanuragh/xdebug-mcp/issues"
+  },
+  "homepage": "https://github.com/kpanuragh/xdebug-mcp#readme",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "fast-xml-parser": "^4.5.0",

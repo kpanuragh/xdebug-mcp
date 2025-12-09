@@ -1,9 +1,13 @@
 # Xdebug MCP Server
 
+[![npm version](https://badge.fury.io/js/xdebug-mcp.svg)](https://www.npmjs.com/package/xdebug-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An MCP (Model Context Protocol) server that provides PHP debugging capabilities through Xdebug's DBGp protocol. This allows AI assistants like Claude to directly debug PHP applications.
 
 ## Features
 
+### Core Debugging
 - **Full Debug Control**: Step into, step over, step out, continue, stop
 - **Breakpoints**: Line breakpoints, conditional breakpoints, exception breakpoints, function call breakpoints
 - **Variable Inspection**: View all variables, get specific variables, set variable values
@@ -12,35 +16,48 @@ An MCP (Model Context Protocol) server that provides PHP debugging capabilities 
 - **Multiple Sessions**: Debug multiple PHP scripts simultaneously
 - **Docker Support**: Works with PHP running in Docker containers
 
+### Advanced Features
+- **Watch Expressions**: Persistent watches that auto-evaluate on each break with change detection
+- **Logpoints**: Log messages without stopping execution using `{$var}` placeholders
+- **Memory Profiling**: Track memory usage and execution time between breakpoints
+- **Code Coverage**: Track which lines were executed during debugging
+- **Request Context**: Capture `$_GET`, `$_POST`, `$_SESSION`, `$_COOKIE`, headers automatically
+- **Step Filters**: Skip vendor/library code during stepping
+- **Debug Profiles**: Save and restore breakpoint configurations
+- **Session Export**: Export debug sessions as JSON or HTML reports
+
 ## Installation
 
+### From npm (Recommended)
+
 ```bash
-# Clone the repository
-git clone <repository-url>
+npm install -g xdebug-mcp
+```
+
+### From Source
+
+```bash
+git clone https://github.com/kpanuragh/xdebug-mcp.git
 cd xdebug-mcp
-
-# Install dependencies
 npm install
-
-# Build
 npm run build
 ```
 
 ## MCP Server Configuration
 
-### For Claude Code (claude_desktop_config.json or settings)
+### For Claude Code
 
-Add the xdebug-mcp server to your MCP configuration:
+Add the xdebug-mcp server to your MCP configuration (`.mcp.json` or Claude settings):
+
+**Using npm global install:**
 
 ```json
 {
   "mcpServers": {
     "xdebug": {
-      "command": "node",
-      "args": ["/home/power/Projects/xdebug-mcp/dist/index.js"],
+      "command": "xdebug-mcp",
       "env": {
         "XDEBUG_PORT": "9003",
-        "XDEBUG_HOST": "0.0.0.0",
         "LOG_LEVEL": "info"
       }
     }
@@ -48,13 +65,14 @@ Add the xdebug-mcp server to your MCP configuration:
 }
 ```
 
-Or if installed globally via npm:
+**Using npx:**
 
 ```json
 {
   "mcpServers": {
     "xdebug": {
-      "command": "xdebug-mcp",
+      "command": "npx",
+      "args": ["-y", "xdebug-mcp"],
       "env": {
         "XDEBUG_PORT": "9003",
         "LOG_LEVEL": "info"
@@ -72,11 +90,9 @@ When debugging PHP in Docker containers, you need path mappings to translate con
 {
   "mcpServers": {
     "xdebug": {
-      "command": "node",
-      "args": ["/home/power/Projects/xdebug-mcp/dist/index.js"],
+      "command": "xdebug-mcp",
       "env": {
         "XDEBUG_PORT": "9003",
-        "XDEBUG_HOST": "0.0.0.0",
         "PATH_MAPPINGS": "{\"/var/www/html\": \"/home/user/projects/myapp\"}",
         "LOG_LEVEL": "info"
       }
@@ -129,7 +145,7 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal client_port=9003
 ```
 
-## Available MCP Tools
+## Available MCP Tools (41 Total)
 
 ### Session Management
 
@@ -174,6 +190,59 @@ services:
 | `evaluate` | Evaluate a PHP expression |
 | `get_source` | Get source code |
 
+### Watch Expressions
+
+| Tool | Description |
+|------|-------------|
+| `add_watch` | Add a persistent watch expression |
+| `remove_watch` | Remove a watch expression |
+| `evaluate_watches` | Evaluate all watches and detect changes |
+| `list_watches` | List all active watches |
+
+### Logpoints
+
+| Tool | Description |
+|------|-------------|
+| `add_logpoint` | Add a logpoint with message template |
+| `remove_logpoint` | Remove a logpoint |
+| `get_logpoint_history` | View log output and hit statistics |
+
+### Profiling
+
+| Tool | Description |
+|------|-------------|
+| `start_profiling` | Start memory/time profiling |
+| `stop_profiling` | Stop profiling and get results |
+| `get_profile_stats` | Get current profiling statistics |
+| `get_memory_timeline` | View memory usage over time |
+
+### Code Coverage
+
+| Tool | Description |
+|------|-------------|
+| `start_coverage` | Start tracking code coverage |
+| `stop_coverage` | Stop and get coverage report |
+| `get_coverage_report` | View coverage statistics |
+
+### Debug Profiles
+
+| Tool | Description |
+|------|-------------|
+| `save_debug_profile` | Save current configuration as a profile |
+| `load_debug_profile` | Load a saved debug profile |
+| `list_debug_profiles` | List all saved profiles |
+
+### Additional Tools
+
+| Tool | Description |
+|------|-------------|
+| `capture_request_context` | Capture HTTP request context |
+| `add_step_filter` | Add filter to skip files during stepping |
+| `list_step_filters` | List step filter rules |
+| `get_function_history` | View function call history |
+| `export_session` | Export session as JSON/HTML report |
+| `capture_snapshot` | Capture debug state snapshot |
+
 ## Usage Examples
 
 ### Setting a Breakpoint
@@ -188,6 +257,19 @@ Use set_breakpoint with file="/var/www/html/index.php" and line=25
 Use set_breakpoint with file="/var/www/html/api.php", line=42, condition="$userId > 100"
 ```
 
+### Watch Expression
+
+```
+Use add_watch with expression="$user->email"
+Use add_watch with expression="count($items)"
+```
+
+### Logpoint
+
+```
+Use add_logpoint with file="/var/www/html/api.php", line=50, message="User {$userId} accessed {$endpoint}"
+```
+
 ### Inspecting Variables
 
 ```
@@ -196,13 +278,10 @@ Use get_variable with name="$user" to inspect a specific variable
 Use evaluate with expression="count($items)" to evaluate an expression
 ```
 
-### Stepping Through Code
+### Capture Request Context
 
 ```
-Use step_into to step into a function
-Use step_over to execute the line and move to the next
-Use step_out to finish the current function
-Use continue to run until the next breakpoint
+Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and headers
 ```
 
 ## Environment Variables
@@ -252,6 +331,10 @@ Use continue to run until the next breakpoint
 1. Ensure file paths match exactly (use container paths for Docker)
 2. Check breakpoint is resolved: `list_breakpoints`
 3. Verify script execution reaches that line
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
