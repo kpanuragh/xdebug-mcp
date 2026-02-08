@@ -208,6 +208,8 @@ When `XDEBUG_SOCKET_PATH` is set, the server will:
 - ✅ High-frequency breakpoint hits
 - ❌ Remote debugging (use TCP instead)
 
+*Unix socket support requested in [Issue #1](https://github.com/kpanuragh/xdebug-mcp/issues/1) by [@dkd-kaehm](https://github.com/dkd-kaehm)*
+
 ## Available MCP Tools (41 Total)
 
 ### Session Management
