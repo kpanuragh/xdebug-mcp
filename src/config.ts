@@ -9,6 +9,7 @@ const ConfigSchema = z.object({
   // DBGp server settings
   dbgpPort: z.number().int().positive().default(9003),
   dbgpHost: z.string().default('0.0.0.0'),
+  dbgpSocketPath: z.string().optional(),
   commandTimeout: z.number().int().positive().default(30000),
 
   // Path mappings for Docker
@@ -35,6 +36,11 @@ export function loadConfig(): Config {
     maxData: parseInt(process.env.MAX_DATA || '2048', 10),
     logLevel: process.env.LOG_LEVEL || 'info',
   };
+
+  // Add socket path if provided
+  if (process.env.XDEBUG_SOCKET_PATH) {
+    rawConfig.dbgpSocketPath = process.env.XDEBUG_SOCKET_PATH;
+  }
 
   // Parse path mappings from JSON if provided
   if (process.env.PATH_MAPPINGS) {

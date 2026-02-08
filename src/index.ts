@@ -24,6 +24,7 @@ async function main() {
   const dbgpServer = new DbgpServer({
     host: config.dbgpHost,
     port: config.dbgpPort,
+    socketPath: config.dbgpSocketPath,
     commandTimeout: config.commandTimeout,
   });
 
@@ -65,9 +66,17 @@ async function main() {
   });
 
   // Start DBGp server
+  let listeningAddress: string;
+  dbgpServer.once('listening', (address) => {
+    listeningAddress = address;
+  });
+
   try {
     await dbgpServer.start();
-    logger.info(`DBGp server listening on ${config.dbgpHost}:${config.dbgpPort}`);
+    const address = config.dbgpSocketPath
+      ? `Unix socket: ${config.dbgpSocketPath}`
+      : `${config.dbgpHost}:${config.dbgpPort}`;
+    logger.info(`DBGp server listening on ${address}`);
   } catch (error) {
     logger.error('Failed to start DBGp server:', error);
     process.exit(1);
@@ -136,7 +145,10 @@ async function main() {
 
   // Keep the process alive
   logger.info('Xdebug MCP Server is ready');
-  logger.info(`Waiting for Xdebug connections on port ${config.dbgpPort}...`);
+  const waitMsg = config.dbgpSocketPath
+    ? `Waiting for Xdebug connections on ${config.dbgpSocketPath}...`
+    : `Waiting for Xdebug connections on port ${config.dbgpPort}...`;
+  logger.info(waitMsg);
 }
 
 main().catch((error) => {

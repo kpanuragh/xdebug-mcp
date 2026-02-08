@@ -145,6 +145,43 @@ services:
       - XDEBUG_CONFIG=client_host=host.docker.internal client_port=9003
 ```
 
+### Using Unix Domain Sockets
+
+For improved performance and simplified setup on local systems, you can use Unix domain sockets instead of TCP:
+
+**MCP Configuration:**
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": {
+        "XDEBUG_SOCKET_PATH": "/tmp/xdebug.sock",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+**PHP/Xdebug Configuration:**
+
+```ini
+[xdebug]
+zend_extension=xdebug
+xdebug.mode=debug
+xdebug.start_with_request=yes
+xdebug.client_host=unix:///tmp/xdebug.sock
+```
+
+When `XDEBUG_SOCKET_PATH` is set, the server will:
+- Listen on the specified Unix socket instead of TCP port
+- Automatically clean up stale socket files on startup and shutdown
+- Use the same debugging tools and features as TCP mode
+
+This approach is recommended for local development as Unix sockets typically have lower latency than TCP loopback connections.
+
 ## Available MCP Tools (41 Total)
 
 ### Session Management
@@ -290,8 +327,9 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections |
-| `XDEBUG_HOST` | `0.0.0.0` | Host to bind |
+| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
+| `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
+| `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |
 | `MAX_DEPTH` | `3` | Max depth for variable inspection |
