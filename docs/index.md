@@ -1,11 +1,14 @@
 ---
 layout: default
-title: Xdebug MCP Server
+title: Xdebug MCP Server - PHP Debugging with AI Agents
+description: Standalone PHP debugger with Xdebug MCP Server. Debug PHP code with Claude, Cursor, VS Code, Cline, and more. No composer, no dependencies - just powerful debugging.
 ---
 
 # Xdebug MCP Server
 
-Debug PHP code interactively with **AI agents and IDEs** using the Xdebug Model Context Protocol Server.
+**The standalone PHP debugger for AI agents and IDEs.**
+
+Debug PHP code interactively with **Claude, Cursor, Cline, VS Code, Copilot, Windsurf, and PhpStorm** using the Xdebug Model Context Protocol Server. No PHP dependencies. No composer requirements. Just connect and debug.
 
 ## 🚀 Quick Start
 
@@ -54,22 +57,20 @@ claude mcp add xdebug-mcp npx xdebug-mcp
 ## 📚 Documentation
 
 ### Getting Started
-- **[Agent Integration Guide](https://github.com/kpanuragh/xdebug-mcp/wiki/Agent-Integration)** ⭐ — Setup for Claude, Cursor, Cline, VS Code, Copilot, Windsurf, PhpStorm
-- **[Installation & Setup](https://github.com/kpanuragh/xdebug-mcp/wiki/Getting-Started)** — Prerequisites and installation
-- **[Debugging Guide](https://github.com/kpanuragh/xdebug-mcp/wiki/Debugging-Guide)** — Learn debugging workflows
+- **[Agent Integration Guide](./guides/agent-integration)** ⭐ — Setup for Claude, Cursor, Cline, VS Code, Copilot, Windsurf, PhpStorm
+- **[Installation & Setup](./guides/getting-started)** — Prerequisites and installation
+- **[Debugging Guide](./guides/debugging-guide)** — Learn debugging workflows
 
 ### Configuration & Reference
-- **[Configuration Reference](https://github.com/kpanuragh/xdebug-mcp/wiki/Configuration-Reference)** — All configuration options
-- **[Connection Modes](https://github.com/kpanuragh/xdebug-mcp/wiki/Connection-Modes)** — TCP vs Unix sockets
-- **[Tools & Commands](https://github.com/kpanuragh/xdebug-mcp/wiki/Tools-Commands)** — Available debugging tools
-- **[Troubleshooting](https://github.com/kpanuragh/xdebug-mcp/wiki/Troubleshooting)** — Common issues & solutions
+- **[Configuration Reference](./reference/configuration)** — All configuration options
+- **[Connection Modes](./reference/connection-modes)** — TCP vs Unix sockets
+- **[Tools & Commands](./reference/tools-commands)** — Available debugging tools
+- **[Troubleshooting](./reference/troubleshooting)** — Common issues & solutions
 
 ### Advanced
-- **[Understanding Xdebug](https://github.com/kpanuragh/xdebug-mcp/wiki/Understanding-Xdebug)** — How Xdebug works
-- **[DBGp Protocol](https://github.com/kpanuragh/xdebug-mcp/wiki/DBGp-Protocol)** — Protocol specification
-- **[MCP Server Architecture](https://github.com/kpanuragh/xdebug-mcp/wiki/MCP-Server-Architecture)** — Server internals
-
-**→ [Full Wiki](https://github.com/kpanuragh/xdebug-mcp/wiki)**
+- **[Understanding Xdebug](./advanced/understanding-xdebug)** — How Xdebug works
+- **[DBGp Protocol](./advanced/dbgp-protocol)** — Protocol specification
+- **[MCP Server Architecture](./advanced/mcp-architecture)** — Server internals
 
 ---
 
