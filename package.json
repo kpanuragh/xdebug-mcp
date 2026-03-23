@@ -37,9 +37,6 @@
     "url": "https://github.com/kpanuragh/xdebug-mcp/issues"
   },
   "homepage": "https://github.com/kpanuragh/xdebug-mcp#readme",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "files": [
     "dist",
     "README.md",
