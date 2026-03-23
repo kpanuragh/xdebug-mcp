@@ -84,9 +84,9 @@ export class DebugSession extends EventEmitter {
     if (this.initialized) return;
 
     try {
-      // Set preferred features
+      // Set preferred features (defaults optimized for most cases)
       await this.setFeature('max_depth', '3');
-      await this.setFeature('max_children', '128');
+      await this.setFeature('max_children', '100');
       await this.setFeature('max_data', '2048');
       await this.setFeature('show_hidden', '1');
 
@@ -96,6 +96,14 @@ export class DebugSession extends EventEmitter {
       logger.error(`Failed to initialize session ${this.id}:`, error);
       throw error;
     }
+  }
+
+  // Update context limits for detailed inspection
+  async setContextLimits(depth: number, children: number, dataSize: number): Promise<void> {
+    await this.setFeature('max_depth', depth.toString());
+    await this.setFeature('max_children', children.toString());
+    await this.setFeature('max_data', dataSize.toString());
+    logger.debug(`Context limits updated: depth=${depth}, children=${children}, dataSize=${dataSize}`);
   }
 
   // === Feature Negotiation ===

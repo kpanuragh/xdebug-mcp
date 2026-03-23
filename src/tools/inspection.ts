@@ -8,7 +8,25 @@ import { z } from 'zod';
 import { SessionManager } from '../session/manager.js';
 import { Property } from '../dbgp/types.js';
 
-// Helper to format property for output
+// Helper to format property metadata (name, type, count only - no values)
+function formatPropertyMetadata(prop: Property): Record<string, unknown> {
+  const result: Record<string, unknown> = {
+    name: prop.name,
+    type: prop.type,
+    fullname: prop.fullname,
+  };
+
+  if (prop.classname) result.classname = prop.classname;
+  if (prop.numchildren !== undefined && prop.numchildren > 0) {
+    result.numchildren = prop.numchildren;
+    result.has_children = true;
+  }
+  if (prop.constant) result.constant = true;
+
+  return result;
+}
+
+// Helper to format property for detailed output (with values and nested properties)
 function formatProperty(prop: Property, depth: number = 0): Record<string, unknown> {
   const result: Record<string, unknown> = {
     name: prop.name,
@@ -22,9 +40,12 @@ function formatProperty(prop: Property, depth: number = 0): Record<string, unkno
   }
   if (prop.constant) result.constant = true;
 
-  // Include nested properties if present and not too deep
-  if (prop.properties && prop.properties.length > 0 && depth < 3) {
+  // Include nested properties for better introspection
+  if (prop.properties && prop.properties.length > 0 && depth < 2) {
     result.children = prop.properties.map((p) => formatProperty(p, depth + 1));
+  } else if (prop.properties && prop.properties.length > 0) {
+    // Show hint for deep nesting
+    result.hint = `Nested properties available - use get_variable() for full details`;
   }
 
   return result;
@@ -158,10 +179,10 @@ export function registerInspectionTools(
     }
   );
 
-  // Get all variables in scope
+  // Get all variables in scope (metadata only - names, types, counts)
   server.tool(
     'get_variables',
-    'Get all variables at the current execution point. Use context_id to switch between local variables, superglobals, etc.',
+    'List all variables in scope with metadata (names, types, child counts). Use get_variable() to inspect specific variable values. Returns lightweight metadata for browsing the variable tree.',
     {
       context_id: z
         .number()
@@ -198,10 +219,11 @@ export function registerInspectionTools(
               type: 'text',
               text: JSON.stringify(
                 {
-                  variables: variables.map((v) => formatProperty(v)),
+                  variables: variables.map((v) => formatPropertyMetadata(v)),
                   count: variables.length,
                   context_id,
                   stack_depth,
+                  hint: 'Use get_variable() to inspect specific variable values and properties',
                 },
                 null,
                 2
