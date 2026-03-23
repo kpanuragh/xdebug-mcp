@@ -37,20 +37,108 @@ async function main() {
     logger.info(`  File: ${connection.initPacket?.fileUri}`);
     logger.info(`  IDE Key: ${connection.initPacket?.ideKey}`);
 
-    try {
-      const session = await sessionManager.createSession(connection);
-      logger.info(`Debug session created: ${session.id}`);
+    let session: any = null;
 
-      // Apply pending breakpoints to the new session
+    try {
+      // === PHASE 1: Session Creation ===
+      try {
+        session = await sessionManager.createSession(connection);
+        logger.info(`Debug session created: ${session.id}`);
+      } catch (createError) {
+        logger.error(`Failed to create debug session: ${createError instanceof Error ? createError.message : String(createError)}`);
+        connection.close();
+        return;
+      }
+
+      // === PHASE 2: Initialization (Breakpoints) ===
       const pendingCount = toolsContext.pendingBreakpoints.count;
       if (pendingCount > 0) {
-        logger.info(`Applying ${pendingCount} pending breakpoints to session ${session.id}...`);
-        const applied = await toolsContext.pendingBreakpoints.applyToSession(session);
-        logger.info(`Applied ${applied.length} breakpoints to session ${session.id}`);
+        try {
+          logger.info(`Applying ${pendingCount} pending breakpoints to session ${session.id}...`);
+          const applied = await toolsContext.pendingBreakpoints.applyToSession(session);
+          logger.info(`Applied ${applied.length} breakpoints to session ${session.id}`);
+        } catch (bpError) {
+          logger.error(
+            `Failed to apply breakpoints to session ${session.id}: ${bpError instanceof Error ? bpError.message : String(bpError)}`
+          );
+          logger.warn(`Continuing without breakpoints — execution will run to completion`);
+          // Don't close — continue with execution attempt
+        }
+      }
+
+      // === PHASE 3: Execution Continuation ===
+      try {
+        // Send 'run' command to continue execution — PHP will break at breakpoints or run to completion
+        const result = await session.run();
+        logger.debug(`Execution result for session ${session.id}: status=${result.status}`);
+
+        // Handle all possible execution states
+        switch (result.status) {
+          case 'stopping': {
+            // Script finished, engine waiting for client acknowledgment
+            logger.info(`Script completed for session ${session.id}, releasing PHP process`);
+
+            try {
+              // When script finishes (status=stopping), send stop to release PHP process.
+              // DBGp "stopping" state means the script completed but the engine is waiting
+              // for client acknowledgment before shutting down.
+              await session.stop();
+              logger.debug(`Successfully stopped session ${session.id}`);
+            } catch (stopError) {
+              logger.error(
+                `Failed to acknowledge script completion for session ${session.id}: ${stopError instanceof Error ? stopError.message : String(stopError)}`
+              );
+              logger.warn(`PHP process may not release cleanly for session ${session.id}`);
+              session.close();
+            }
+            break;
+          }
+
+          case 'break': {
+            logger.info(
+              `Execution paused at breakpoint for session ${session.id}: ${result.file}:${result.line}`
+            );
+            // Session remains active — user can interact via MCP tools (step, inspect, run, etc.)
+            break;
+          }
+
+          case 'running': {
+            logger.warn(`Execution still in progress after run command for session ${session.id}`);
+            // Unexpected but not critical — session should eventually complete
+            break;
+          }
+
+          case 'stopped': {
+            logger.info(`Session ${session.id} already in stopped state`);
+            break;
+          }
+
+          case 'starting': {
+            logger.warn(`Session ${session.id} still in starting state after run command`);
+            break;
+          }
+
+          default: {
+            logger.error(`Unknown execution status for session ${session.id}: ${result.status}`);
+          }
+        }
+      } catch (runError) {
+        logger.error(
+          `Failed to continue execution for session ${session.id}: ${runError instanceof Error ? runError.message : String(runError)}`
+        );
+        logger.warn(`Debug session ${session.id} may be in an unstable state`);
+        session.close();
       }
     } catch (error) {
-      logger.error('Failed to create session:', error);
-      connection.close();
+      // Catch-all for any unexpected errors
+      logger.error(
+        `Unexpected error in connection handler for session ${session?.id || 'unknown'}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      if (session) {
+        session.close();
+      } else {
+        connection.close();
+      }
     }
   });
 
