@@ -2,7 +2,7 @@
 layout: default
 title: MCP Server Architecture | Xdebug MCP
 description: Technical architecture of Xdebug MCP Server. System design, components, data flow, and implementation details.
-permalink: /advanced/mcp-architecture/
+permalink: /:collection/:name/
 ---
 
 # MCP Server Architecture
@@ -638,6 +638,6 @@ DEBUG=xdebug-mcp:tools  # Tool handlers only
 ---
 
 **Related:**
-- [DBGp Protocol](./dbgp-protocol) - Protocol details
-- [Understanding Xdebug](./understanding-xdebug) - How Xdebug works
-- [Configuration](../reference/configuration) - Server configuration
+- [DBGp Protocol](../advanced/dbgp-protocol/) - Protocol details
+- [Understanding Xdebug](../advanced/understanding-xdebug/) - How Xdebug works
+- [Configuration](../reference/configuration/) - Server configuration

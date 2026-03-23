@@ -2,7 +2,7 @@
 layout: default
 title: Getting Started with Xdebug MCP | Installation Guide
 description: Install and setup Xdebug MCP Server in minutes. No PHP dependencies. Standalone PHP debugging for AI agents.
-permalink: /guides/getting-started/
+permalink: /:collection/:name/
 ---
 
 # Getting Started with Xdebug MCP

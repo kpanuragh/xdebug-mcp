@@ -2,7 +2,7 @@
 layout: default
 title: Troubleshooting Guide | Xdebug MCP
 description: Fix common Xdebug MCP issues. Installation problems, connection errors, breakpoint issues, and more with solutions.
-permalink: /reference/troubleshooting/
+permalink: /:collection/:name/
 ---
 
 # Troubleshooting Guide

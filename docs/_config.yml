@@ -1,5 +1,7 @@
 title: Xdebug MCP Server
 description: Debug PHP code with AI agents and IDEs using the Xdebug Model Context Protocol Server
+baseurl: /xdebug-mcp
+url: https://iamanuragh.in
 theme: jekyll-theme-minimal
 logo: https://xdebug.org/images/logo.svg
 github:
@@ -15,13 +17,13 @@ highlighter: rouge
 collections:
   guides:
     output: true
-    permalink: /guides/:name/
+    permalink: /:collection/:name/
   reference:
     output: true
-    permalink: /reference/:name/
+    permalink: /:collection/:name/
   advanced:
     output: true
-    permalink: /advanced/:name/
+    permalink: /:collection/:name/
 
 # Links to wiki
 wiki_url: https://github.com/kpanuragh/xdebug-mcp/wiki

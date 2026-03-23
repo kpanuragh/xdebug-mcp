@@ -2,7 +2,7 @@
 layout: default
 title: Understanding Xdebug | How Xdebug Works
 description: Deep dive into Xdebug architecture, installation, modes, and how PHP debugging works. Technical understanding for advanced users.
-permalink: /advanced/understanding-xdebug/
+permalink: /:collection/:name/
 ---
 
 # Understanding Xdebug
@@ -549,6 +549,6 @@ Analyze with:
 ---
 
 **Next Steps:**
-- [DBGp Protocol](./dbgp-protocol) - Protocol details
-- [Debugging Guide](../guides/debugging-guide) - Practical debugging
-- [Configuration](../reference/configuration) - Configuration details
+- [DBGp Protocol](../advanced/dbgp-protocol/) - Protocol details
+- [Debugging Guide](../guides/debugging-guide/) - Practical debugging
+- [Configuration](../reference/configuration/) - Configuration details

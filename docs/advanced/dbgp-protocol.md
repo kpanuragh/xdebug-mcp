@@ -2,7 +2,7 @@
 layout: default
 title: DBGp Protocol Specification | Xdebug
 description: Complete DBGp protocol documentation. XML-based debugging protocol used by Xdebug with commands, responses, and examples.
-permalink: /advanced/dbgp-protocol/
+permalink: /:collection/:name/
 ---
 
 # DBGp Protocol Specification
@@ -533,5 +533,5 @@ Evaluates arbitrary expressions in current context.
 ---
 
 **Next Steps:**
-- [MCP Architecture](./mcp-architecture) - How Xdebug MCP Server uses DBGp
-- [Debugging Guide](../guides/debugging-guide) - Practical debugging
+- [MCP Architecture](../advanced/mcp-architecture/) - How Xdebug MCP Server uses DBGp
+- [Debugging Guide](../guides/debugging-guide/) - Practical debugging

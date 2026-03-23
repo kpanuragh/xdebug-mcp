@@ -57,20 +57,20 @@ claude mcp add xdebug-mcp npx xdebug-mcp
 ## 📚 Documentation
 
 ### Getting Started
-- **[Agent Integration Guide](/xdebug-mcp/guides/agent-integration/)** ⭐ — Setup for Claude, Cursor, Cline, VS Code, Copilot, Windsurf, PhpStorm
-- **[Installation & Setup](/xdebug-mcp/guides/getting-started/)** — Prerequisites and installation
-- **[Debugging Guide](/xdebug-mcp/guides/debugging-guide/)** — Learn debugging workflows
+- **[Agent Integration Guide](guides/agent-integration/)** ⭐ — Setup for Claude, Cursor, Cline, VS Code, Copilot, Windsurf, PhpStorm
+- **[Installation & Setup](guides/getting-started/)** — Prerequisites and installation
+- **[Debugging Guide](guides/debugging-guide/)** — Learn debugging workflows
 
 ### Configuration & Reference
-- **[Configuration Reference](/xdebug-mcp/reference/configuration/)** — All configuration options
-- **[Connection Modes](/xdebug-mcp/reference/connection-modes/)** — TCP vs Unix sockets
-- **[Tools & Commands](/xdebug-mcp/reference/tools-commands/)** — Available debugging tools
-- **[Troubleshooting](/xdebug-mcp/reference/troubleshooting/)** — Common issues & solutions
+- **[Configuration Reference](reference/configuration/)** — All configuration options
+- **[Connection Modes](reference/connection-modes/)** — TCP vs Unix sockets
+- **[Tools & Commands](reference/tools-commands/)** — Available debugging tools
+- **[Troubleshooting](reference/troubleshooting/)** — Common issues & solutions
 
 ### Advanced
-- **[Understanding Xdebug](/xdebug-mcp/advanced/understanding-xdebug/)** — How Xdebug works
-- **[DBGp Protocol](/xdebug-mcp/advanced/dbgp-protocol/)** — Protocol specification
-- **[MCP Server Architecture](/xdebug-mcp/advanced/mcp-architecture/)** — Server internals
+- **[Understanding Xdebug](advanced/understanding-xdebug/)** — How Xdebug works
+- **[DBGp Protocol](advanced/dbgp-protocol/)** — Protocol specification
+- **[MCP Server Architecture](advanced/mcp-architecture/)** — Server internals
 
 ---
 

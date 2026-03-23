@@ -2,7 +2,7 @@
 layout: default
 title: Connection Modes | TCP vs Unix Socket | Xdebug MCP
 description: Configure Xdebug MCP with TCP or Unix domain sockets. Performance comparison and setup guide for both connection modes.
-permalink: /reference/connection-modes/
+permalink: /:collection/:name/
 ---
 
 # Connection Modes

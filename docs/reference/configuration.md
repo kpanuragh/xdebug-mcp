@@ -2,7 +2,7 @@
 layout: default
 title: Configuration Reference | Xdebug MCP
 description: Complete Xdebug MCP and PHP Xdebug configuration options. Environment variables, php.ini settings, Docker setup.
-permalink: /reference/configuration/
+permalink: /:collection/:name/
 ---
 
 # Configuration Reference

@@ -2,7 +2,7 @@
 layout: default
 title: PHP Debugging Guide | Xdebug MCP
 description: Complete PHP debugging guide with step-by-step workflows, breakpoints, variable inspection, and stack traces using Xdebug MCP.
-permalink: /guides/debugging-guide/
+permalink: /:collection/:name/
 ---
 
 # PHP Debugging Guide
