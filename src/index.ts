@@ -155,11 +155,6 @@ async function main() {
   });
 
   // Start DBGp server
-  let listeningAddress: string;
-  dbgpServer.once('listening', (address) => {
-    listeningAddress = address;
-  });
-
   try {
     await dbgpServer.start();
     const address = config.dbgpSocketPath
