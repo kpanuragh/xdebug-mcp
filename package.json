@@ -1,6 +1,6 @@
 {
-  "name": "@kpanuragh/xdebug-mcp",
-  "version": "1.2.0",
+  "name": "xdebug-mcp",
+  "version": "1.2.1",
   "mcpName": "io.github.kpanuragh/xdebug",
   "description": "MCP server for PHP Xdebug debugging - enables AI-assisted PHP debugging through the Model Context Protocol",
   "type": "module",
@@ -55,7 +55,4 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  }
 }
