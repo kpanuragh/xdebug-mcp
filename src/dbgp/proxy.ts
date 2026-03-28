@@ -6,17 +6,25 @@
 import * as net from 'net';
 import { XMLParser } from 'fast-xml-parser';
 
+/**
+ * Connection settings for the external DBGp proxy.
+ */
 export interface DbgpProxyConfig {
   host: string;
   port: number;
   ideKey: string;
 }
 
+/**
+ * Successful proxy registration details returned by the proxy server.
+ */
 export interface ProxyRegistration {
   ideKey: string;
   address?: string;
   port?: number;
 }
+
+type ProxyCommandName = 'proxyinit' | 'proxystop';
 
 interface ProxyXmlResponse {
   success?: string;
@@ -30,6 +38,11 @@ interface ProxyXmlResponse {
   };
 }
 
+type ProxyResponseEnvelope = Partial<Record<ProxyCommandName, ProxyXmlResponse>> & Record<string, unknown>;
+
+/**
+ * Register and unregister this MCP server against a DBGp proxy.
+ */
 export class DbgpProxyClient {
   private readonly xmlParser: XMLParser;
   private registration: ProxyRegistration | null = null;
@@ -44,14 +57,23 @@ export class DbgpProxyClient {
     });
   }
 
+  /**
+   * Whether the client currently has an active proxy registration.
+   */
   get isRegistered(): boolean {
     return this.registration !== null;
   }
 
+  /**
+   * Return the active registration details when registration succeeded.
+   */
   get currentRegistration(): ProxyRegistration | null {
     return this.registration;
   }
 
+  /**
+   * Register the current IDE key with the proxy so incoming Xdebug sessions are routed here.
+   */
   async register(listenPort: number, supportsMultipleSessions: boolean): Promise<ProxyRegistration> {
     const multipleSessionsFlag = supportsMultipleSessions ? '1' : '0';
     const response = await this.sendProxyCommand(
@@ -67,12 +89,15 @@ export class DbgpProxyClient {
     this.registration = {
       ideKey: proxyInit['@_idekey'] || this.config.ideKey,
       address: proxyInit['@_address'],
-      port: proxyInit['@_port'] ? parseInt(proxyInit['@_port'], 10) : undefined,
+      port: this.parseOptionalPort(proxyInit['@_port']),
     };
 
     return this.registration;
   }
 
+  /**
+   * Remove the current registration from the proxy before shutting down the local listener.
+   */
   async unregister(): Promise<void> {
     if (!this.registration) {
       return;
@@ -91,7 +116,10 @@ export class DbgpProxyClient {
     this.registration = null;
   }
 
-  private async sendProxyCommand(command: string): Promise<Record<string, unknown>> {
+  /**
+   * Send a single proxy command and parse the XML payload returned by the proxy server.
+   */
+  private async sendProxyCommand(command: string): Promise<ProxyResponseEnvelope> {
     return new Promise((resolve, reject) => {
       const commandName = command.split(' ', 1)[0] || 'DBGp proxy command';
       const socket = net.createConnection(
@@ -156,6 +184,7 @@ export class DbgpProxyClient {
         });
       });
 
+      // Some proxies close immediately after the NULL-terminated payload, so accept either event.
       socket.on('end', () => {
         resolveResponse(false);
       });
@@ -170,28 +199,34 @@ export class DbgpProxyClient {
     });
   }
 
-  private parseResponse(response: string): Record<string, unknown> {
+  /**
+   * Parse the proxy XML payload into a typed envelope once transport framing is removed.
+   */
+  private parseResponse(response: string): ProxyResponseEnvelope {
     const payload = response.replace(/\0/g, '').trim();
     if (!payload) {
       throw new Error('DBGp proxy returned an empty response');
     }
 
-    return this.xmlParser.parse(payload) as Record<string, unknown>;
+    return this.xmlParser.parse(payload) as ProxyResponseEnvelope;
   }
 
-  private getResponseNode(response: Record<string, unknown>, key: string): ProxyXmlResponse {
+  /**
+   * Extract the command response node even when proxies wrap it inside an outer document element.
+   */
+  private getResponseNode(response: ProxyResponseEnvelope, key: ProxyCommandName): ProxyXmlResponse {
     const directNode = response[key];
-    if (directNode && !Array.isArray(directNode) && typeof directNode === 'object') {
+    if (this.isObjectRecord(directNode)) {
       return directNode as ProxyXmlResponse;
     }
 
     for (const value of Object.values(response)) {
-      if (!value || Array.isArray(value) || typeof value !== 'object') {
+      if (!this.isObjectRecord(value)) {
         continue;
       }
 
-      const nestedNode = (value as Record<string, unknown>)[key];
-      if (nestedNode && !Array.isArray(nestedNode) && typeof nestedNode === 'object') {
+      const nestedNode = value[key];
+      if (this.isObjectRecord(nestedNode)) {
         return nestedNode as ProxyXmlResponse;
       }
     }
@@ -216,6 +251,32 @@ export class DbgpProxyClient {
     return fallbackMessage;
   }
 
+  /**
+   * Reject malformed proxy port values early so registration logs do not contain a fake port number.
+   */
+  private parseOptionalPort(value?: string): number | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    const port = parseInt(value, 10);
+    if (Number.isNaN(port) || port <= 0) {
+      throw new Error(`DBGp proxy returned an invalid port: ${value}`);
+    }
+
+    return port;
+  }
+
+  /**
+   * Narrow unknown parser output to a plain object before reading XML attributes from it.
+   */
+  private isObjectRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  /**
+   * Escape command arguments so proxy commands survive spaces and shell-sensitive characters.
+   */
   private escapeArg(value: string): string {
     if (value.includes('\0')) {
       throw new Error('DBGp proxy arguments cannot contain null bytes');

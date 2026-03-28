@@ -11,9 +11,13 @@ import { loadConfig } from './config.js';
 import { DbgpProxyClient } from './dbgp/proxy.js';
 import { DbgpServer } from './dbgp/server.js';
 import { SessionManager } from './session/manager.js';
+import type { DebugSession } from './session/session.js';
 import { registerAllTools, createToolsContext, ToolsContext } from './tools/index.js';
 import { logger } from './utils/logger.js';
 
+/**
+ * Start the MCP server and optionally register its DBGp listener with an external proxy.
+ */
 async function main() {
   const config = loadConfig();
   const proxyConfig = config.proxy;
@@ -46,7 +50,7 @@ async function main() {
     logger.info(`  File: ${connection.initPacket?.fileUri}`);
     logger.info(`  IDE Key: ${connection.initPacket?.ideKey}`);
 
-    let session: any = null;
+    let session: DebugSession | null = null;
 
     try {
       // === PHASE 1: Session Creation ===
@@ -177,6 +181,7 @@ async function main() {
 
   if (dbgpProxyClient && proxyConfig) {
     try {
+      // Register only after the TCP listener is live so the proxy never routes sessions to a dead endpoint.
       const registration = await dbgpProxyClient.register(config.dbgpPort, true);
       const proxyTarget = registration.address && registration.port
         ? `${registration.address}:${registration.port}`
@@ -230,6 +235,7 @@ async function main() {
     sessionManager.closeAllSessions();
     if (dbgpProxyClient?.isRegistered && proxyConfig) {
       try {
+        // Unregister first so the proxy stops routing new sessions while this process is exiting.
         await dbgpProxyClient.unregister();
         logger.info(`Removed DBGp proxy registration for IDE key '${proxyConfig?.ideKey}'`);
       } catch (error) {
