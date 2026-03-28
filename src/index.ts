@@ -29,7 +29,13 @@ async function main() {
     socketPath: config.dbgpSocketPath,
     commandTimeout: config.commandTimeout,
   });
-  const dbgpProxyClient = proxyConfig ? new DbgpProxyClient(proxyConfig) : null;
+  const dbgpProxyClient = proxyConfig
+    ? new DbgpProxyClient({
+        host: proxyConfig.host,
+        port: proxyConfig.port,
+        ideKey: proxyConfig.ideKey,
+      })
+    : null;
 
   // Create tools context early so we can access pendingBreakpoints
   const toolsContext: ToolsContext = createToolsContext(sessionManager);

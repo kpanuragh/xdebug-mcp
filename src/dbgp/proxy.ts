@@ -10,7 +10,6 @@ export interface DbgpProxyConfig {
   host: string;
   port: number;
   ideKey: string;
-  allowFallback: boolean;
 }
 
 export interface ProxyRegistration {
@@ -94,6 +93,7 @@ export class DbgpProxyClient {
 
   private async sendProxyCommand(command: string): Promise<Record<string, unknown>> {
     return new Promise((resolve, reject) => {
+      const commandName = command.split(' ', 1)[0] || 'DBGp proxy command';
       const socket = net.createConnection(
         {
           host: this.config.host,
@@ -116,10 +116,27 @@ export class DbgpProxyClient {
         handler();
       };
 
+      const resolveResponse = (destroySocket: boolean) => {
+        finish(() => {
+          try {
+            const parsedResponse = this.parseResponse(response);
+            if (destroySocket) {
+              socket.destroy();
+            }
+            resolve(parsedResponse);
+          } catch (error) {
+            if (destroySocket) {
+              socket.destroy();
+            }
+            reject(error);
+          }
+        });
+      };
+
       const timeout = setTimeout(() => {
         finish(() => {
           socket.destroy();
-          reject(new Error(`DBGp proxy command timed out: ${command}`));
+          reject(new Error(`${commandName} timed out waiting for a DBGp proxy response`));
         });
       }, 10000);
 
@@ -127,6 +144,10 @@ export class DbgpProxyClient {
 
       socket.on('data', (chunk) => {
         response += chunk;
+        if (!response.includes('\0')) {
+          return;
+        }
+        resolveResponse(true);
       });
 
       socket.on('error', (error) => {
@@ -136,13 +157,7 @@ export class DbgpProxyClient {
       });
 
       socket.on('end', () => {
-        finish(() => {
-          try {
-            resolve(this.parseResponse(response));
-          } catch (error) {
-            reject(error);
-          }
-        });
+        resolveResponse(false);
       });
 
       socket.on('close', (hadError) => {
@@ -150,13 +165,7 @@ export class DbgpProxyClient {
           return;
         }
 
-        finish(() => {
-          try {
-            resolve(this.parseResponse(response));
-          } catch (error) {
-            reject(error);
-          }
-        });
+        resolveResponse(false);
       });
     });
   }
@@ -171,12 +180,23 @@ export class DbgpProxyClient {
   }
 
   private getResponseNode(response: Record<string, unknown>, key: string): ProxyXmlResponse {
-    const node = response[key];
-    if (!node || Array.isArray(node) || typeof node !== 'object') {
-      throw new Error(`Unexpected DBGp proxy response: missing <${key}> root element`);
+    const directNode = response[key];
+    if (directNode && !Array.isArray(directNode) && typeof directNode === 'object') {
+      return directNode as ProxyXmlResponse;
     }
 
-    return node as ProxyXmlResponse;
+    for (const value of Object.values(response)) {
+      if (!value || Array.isArray(value) || typeof value !== 'object') {
+        continue;
+      }
+
+      const nestedNode = (value as Record<string, unknown>)[key];
+      if (nestedNode && !Array.isArray(nestedNode) && typeof nestedNode === 'object') {
+        return nestedNode as ProxyXmlResponse;
+      }
+    }
+
+    throw new Error(`Unexpected DBGp proxy response: missing <${key}> root element`);
   }
 
   private getErrorMessage(response: ProxyXmlResponse, fallbackMessage: string): string {
@@ -197,8 +217,11 @@ export class DbgpProxyClient {
   }
 
   private escapeArg(value: string): string {
-    if (/[\\s"\\\\]/.test(value)) {
-      return `"${value.replace(/\\\\/g, '\\\\\\\\').replace(/"/g, '\\"')}"`;
+    if (value.includes('\0')) {
+      throw new Error('DBGp proxy arguments cannot contain null bytes');
+    }
+    if (/[\s"\\]/.test(value)) {
+      return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
     }
 
     return value;
