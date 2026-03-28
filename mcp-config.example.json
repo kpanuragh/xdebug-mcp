@@ -4,11 +4,11 @@
       "command": "node",
       "args": ["/home/power/Projects/xdebug-mcp/dist/index.js"],
       "env": {
-        "XDEBUG_PORT": "9006",
+        "XDEBUG_PORT": "9007",
         "XDEBUG_HOST": "0.0.0.0",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY": "mcp",
+        "DBGP_IDEKEY": "claude-mcp",
         "DBGP_PROXY_ALLOW_FALLBACK": "false",
         "LOG_LEVEL": "info",
         "PATH_MAPPINGS": "{\"/var/www/html\": \"/home/power/projects/myapp\"}"
