@@ -132,6 +132,7 @@ Notes:
 - On shutdown, xdebug-mcp sends `proxystop -k <idekey>`.
 - If `DBGP_PROXY_ALLOW_FALLBACK=false`, startup fails when proxy registration fails.
 - If `DBGP_PROXY_ALLOW_FALLBACK=true`, the server logs the error and continues in direct-listener mode.
+- In fallback mode, `xdebug-mcp` still starts successfully and behaves like a normal direct listener even though proxy registration did not succeed.
 - If you run multiple AI agents at the same time, each `xdebug-mcp` instance must use a unique `DBGP_IDEKEY` and a unique `XDEBUG_PORT`.
 - Example values: Warp = `warp-mcp` on `9006`, Claude Code = `claude-mcp` on `9007`, Codex = `codex-mcp` on `9008`.
 - Do not install `xdebug-mcp` behind an MCP proxy or bundler when you need unique per-agent registrations. Register `xdebug-mcp` directly in each agent instead.
@@ -149,7 +150,7 @@ Use this mode when PHP should connect to a DBGp proxy, and the proxy should rout
 | `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
 | `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` / `proxystop`. Example: `9001`. |
 | `DBGP_IDEKEY` | Yes | IDE key that the proxy should route to this MCP server. Use a value distinct from PhpStorm and distinct from every other running agent, for example `warp-mcp`, `claude-mcp`, or `codex-mcp`. |
-| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), keep running in direct-listener mode if proxy registration fails. When `false`, exit startup on registration failure. |
+| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), keep running in direct-listener mode if proxy registration fails, so `xdebug-mcp` still starts as a normal direct listener. When `false`, exit startup on registration failure. |
 
 Important constraints:
 - `XDEBUG_SOCKET_PATH` cannot be used together with DBGp proxy registration in the current implementation.
