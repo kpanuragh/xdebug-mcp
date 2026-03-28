@@ -5,12 +5,20 @@
 import { z } from 'zod';
 import { LogLevel, logger } from './utils/logger.js';
 
+const ProxyConfigSchema = z.object({
+  host: z.string().min(1),
+  port: z.number().int().positive(),
+  ideKey: z.string().min(1),
+  allowFallback: z.boolean().default(true),
+});
+
 const ConfigSchema = z.object({
   // DBGp server settings
   dbgpPort: z.number().int().positive().default(9003),
   dbgpHost: z.string().default('0.0.0.0'),
   dbgpSocketPath: z.string().optional(),
   commandTimeout: z.number().int().positive().default(30000),
+  proxy: ProxyConfigSchema.optional(),
 
   // Path mappings for Docker
   pathMappings: z.record(z.string(), z.string()).optional(),
@@ -40,6 +48,31 @@ export function loadConfig(): Config {
   // Add socket path if provided
   if (process.env.XDEBUG_SOCKET_PATH) {
     rawConfig.dbgpSocketPath = process.env.XDEBUG_SOCKET_PATH;
+  }
+
+  const proxyHost = process.env.DBGP_PROXY_HOST;
+  const proxyPort = process.env.DBGP_PROXY_PORT;
+  const proxyIdeKey = process.env.DBGP_IDEKEY;
+
+  if (proxyHost || proxyPort || proxyIdeKey) {
+    if (!proxyHost || !proxyPort || !proxyIdeKey) {
+      throw new Error(
+        'DBGp proxy configuration is incomplete. Set DBGP_PROXY_HOST, DBGP_PROXY_PORT, and DBGP_IDEKEY together.'
+      );
+    }
+
+    if (process.env.XDEBUG_SOCKET_PATH) {
+      throw new Error(
+        'DBGp proxy registration requires TCP listener mode. Remove XDEBUG_SOCKET_PATH when using DBGP proxy registration.'
+      );
+    }
+
+    rawConfig.proxy = {
+      host: proxyHost,
+      port: parseInt(proxyPort, 10),
+      ideKey: proxyIdeKey,
+      allowFallback: process.env.DBGP_PROXY_ALLOW_FALLBACK !== 'false',
+    };
   }
 
   // Parse path mappings from JSON if provided

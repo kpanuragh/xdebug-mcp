@@ -101,6 +101,139 @@ When debugging PHP in Docker containers, you need path mappings to translate con
 }
 ```
 
+### With DBGp Proxy Registration
+
+If you already use a DBGp proxy, xdebug-mcp can register itself on startup in the same way a traditional IDE does. Proxy registration is optional and only activates when all proxy environment variables are present.
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": {
+        "XDEBUG_PORT": "9006",
+        "XDEBUG_HOST": "0.0.0.0",
+        "DBGP_PROXY_HOST": "127.0.0.1",
+        "DBGP_PROXY_PORT": "9001",
+        "DBGP_IDEKEY": "mcp",
+        "DBGP_PROXY_ALLOW_FALLBACK": "false",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+Notes:
+- Proxy registration requires TCP listener mode. It does not work when `XDEBUG_SOCKET_PATH` is set.
+- In proxy mode, keep PHP/Xdebug pointed at the proxy endpoint and give xdebug-mcp its own callback port such as `9006`.
+- Do not reuse the proxy's client-facing port for `XDEBUG_PORT`.
+- On startup, xdebug-mcp sends `proxyinit -p <listen-port> -k <idekey> -m 1`.
+- On shutdown, xdebug-mcp sends `proxystop -k <idekey>`.
+- If `DBGP_PROXY_ALLOW_FALLBACK=false`, startup fails when proxy registration fails.
+- If `DBGP_PROXY_ALLOW_FALLBACK=true`, the server logs the error and continues in direct-listener mode.
+
+### DBGp Proxy Configuration Guide
+
+Use this mode when PHP should connect to a DBGp proxy, and the proxy should route sessions to xdebug-mcp by IDE key.
+
+#### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `XDEBUG_PORT` | Yes | TCP callback port where `xdebug-mcp` listens for proxied DBGp sessions. Example: `9006`. This is **not** the proxy's port. |
+| `XDEBUG_HOST` | No | Interface for the local callback listener. Defaults to `0.0.0.0`. |
+| `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
+| `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` / `proxystop`. Example: `9001`. |
+| `DBGP_IDEKEY` | Yes | IDE key that the proxy should route to this MCP server. Use a value distinct from PhpStorm, for example `mcp`. |
+| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), keep running in direct-listener mode if proxy registration fails. When `false`, exit startup on registration failure. |
+
+Important constraints:
+- `XDEBUG_SOCKET_PATH` cannot be used together with DBGp proxy registration in the current implementation.
+- `XDEBUG_PORT` is the MCP callback listener port. PHP/Xdebug should still connect to the proxy's client-facing port.
+- Use a dedicated IDE key for xdebug-mcp. Do not reuse the same IDE key as PhpStorm.
+
+#### MCP Configuration Examples
+
+**Installed package:**
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": {
+        "XDEBUG_PORT": "9006",
+        "XDEBUG_HOST": "0.0.0.0",
+        "DBGP_PROXY_HOST": "127.0.0.1",
+        "DBGP_PROXY_PORT": "9001",
+        "DBGP_IDEKEY": "mcp",
+        "DBGP_PROXY_ALLOW_FALLBACK": "false",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+**Run from a local source checkout:**
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "node",
+      "args": ["/absolute/path/to/xdebug-mcp/dist/index.js"],
+      "env": {
+        "XDEBUG_PORT": "9006",
+        "XDEBUG_HOST": "0.0.0.0",
+        "DBGP_PROXY_HOST": "127.0.0.1",
+        "DBGP_PROXY_PORT": "9001",
+        "DBGP_IDEKEY": "mcp",
+        "DBGP_PROXY_ALLOW_FALLBACK": "false",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+Use the `node .../dist/index.js` form when running an unpublished local branch.
+
+#### How Registration Works
+
+1. `xdebug-mcp` starts its local TCP listener on `XDEBUG_HOST:XDEBUG_PORT`.
+2. If `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` are present, it opens a control connection to the DBGp proxy.
+3. It sends:
+   - `proxyinit -p <XDEBUG_PORT> -k <DBGP_IDEKEY> -m 1`
+4. The proxy stores that registration and routes matching IDE-key sessions back to `xdebug-mcp`.
+5. On shutdown, `xdebug-mcp` sends:
+   - `proxystop -k <DBGP_IDEKEY>`
+
+#### PHP/Xdebug Side In Proxy Mode
+
+When using a DBGp proxy, PHP should point to the proxy, not directly to `xdebug-mcp`:
+
+```ini
+[xdebug]
+zend_extension=xdebug
+xdebug.mode=debug
+xdebug.start_with_request=trigger
+xdebug.client_host=127.0.0.1
+xdebug.client_port=9003
+```
+
+Then trigger the request with the IDE key registered for `xdebug-mcp`, for example:
+- `XDEBUG_TRIGGER=mcp`
+- `XDEBUG_SESSION=mcp`
+
+#### DBGp Proxy Binary / Download
+
+The official Xdebug DBGp proxy documentation, source, and download guidance are here:
+- https://xdebug.org/docs/dbgpProxy
+
+Use that page for installation details and the current recommended binary/source distribution method for the proxy.
+
 ## PHP/Xdebug Configuration
 
 ### php.ini (or xdebug.ini)
@@ -355,9 +488,13 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
+| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode). In DBGp proxy mode, set this to a separate callback port such as `9006`, not the proxy's client-facing port |
 | `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
+| `DBGP_PROXY_HOST` | - | DBGp proxy host for optional IDE registration |
+| `DBGP_PROXY_PORT` | - | DBGp proxy port for optional IDE registration (typically `9001`) |
+| `DBGP_IDEKEY` | - | IDE key to register with the DBGp proxy |
+| `DBGP_PROXY_ALLOW_FALLBACK` | `true` | Continue in direct-listener mode when proxy registration fails |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |
 | `MAX_DEPTH` | `3` | Max depth for variable inspection |
@@ -402,6 +539,7 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 **Connection Options:**
 - **TCP (Default):** `xdebug.client_host=127.0.0.1` + `XDEBUG_PORT=9003`
 - **Unix Socket:** `xdebug.client_host=unix:///tmp/xdebug.sock` + `XDEBUG_SOCKET_PATH=/tmp/xdebug.sock`
+- **DBGp Proxy:** Keep xdebug-mcp listening on TCP, set `XDEBUG_PORT` to a separate callback port such as `9006`, and set `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` so the server registers itself with your proxy on startup
 
 ## Troubleshooting
 
@@ -431,6 +569,22 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 3. **Socket path in php.ini:**
    - Correct: `xdebug.client_host=unix:///tmp/xdebug.sock`
    - Wrong: `xdebug.client_host=unix:/tmp/xdebug.sock` (missing one `/`)
+
+### DBGp proxy issues
+
+1. **Server starts but never registers with the proxy**
+   - Set `LOG_LEVEL=debug`
+   - Verify `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` are all present
+2. **Proxy mode with Unix sockets**
+   - Remove `XDEBUG_SOCKET_PATH`
+   - DBGp proxy registration requires TCP listener mode
+3. **Proxy registration failure should stop startup**
+   - Set `DBGP_PROXY_ALLOW_FALLBACK=false`
+4. **Proxy cannot route back to xdebug-mcp**
+   - Do not set `XDEBUG_PORT` to the proxy's client-facing port
+   - Use a separate callback port such as `9006`
+   - Make sure the MCP server's `XDEBUG_PORT` is reachable from the proxy
+   - Remember that the proxy uses the registration connection's source address plus the `-p` port
 
 ### Breakpoints not hitting
 

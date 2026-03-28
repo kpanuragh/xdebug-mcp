@@ -8,6 +8,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { loadConfig } from './config.js';
+import { DbgpProxyClient } from './dbgp/proxy.js';
 import { DbgpServer } from './dbgp/server.js';
 import { SessionManager } from './session/manager.js';
 import { registerAllTools, createToolsContext, ToolsContext } from './tools/index.js';
@@ -15,6 +16,7 @@ import { logger } from './utils/logger.js';
 
 async function main() {
   const config = loadConfig();
+  const proxyConfig = config.proxy;
 
   logger.info('Starting Xdebug MCP Server...');
   logger.debug('Configuration:', config);
@@ -27,6 +29,7 @@ async function main() {
     socketPath: config.dbgpSocketPath,
     commandTimeout: config.commandTimeout,
   });
+  const dbgpProxyClient = proxyConfig ? new DbgpProxyClient(proxyConfig) : null;
 
   // Create tools context early so we can access pendingBreakpoints
   const toolsContext: ToolsContext = createToolsContext(sessionManager);
@@ -166,6 +169,29 @@ async function main() {
     process.exit(1);
   }
 
+  if (dbgpProxyClient && proxyConfig) {
+    try {
+      const registration = await dbgpProxyClient.register(config.dbgpPort, true);
+      const proxyTarget = registration.address && registration.port
+        ? `${registration.address}:${registration.port}`
+        : 'unknown proxy endpoint';
+      logger.info(
+        `Registered IDE key '${registration.ideKey}' with DBGp proxy ${proxyConfig.host}:${proxyConfig.port} (proxy server: ${proxyTarget})`
+      );
+    } catch (error) {
+      logger.error(
+        `Failed to register with DBGp proxy ${proxyConfig.host}:${proxyConfig.port}: ${error instanceof Error ? error.message : String(error)}`
+      );
+
+      if (!proxyConfig.allowFallback) {
+        await dbgpServer.stop();
+        process.exit(1);
+      }
+
+      logger.warn('Continuing in direct-listener mode because DBGP_PROXY_ALLOW_FALLBACK is enabled');
+    }
+  }
+
   // Initialize MCP server
   const mcpServer = new McpServer({
     name: 'xdebug-mcp',
@@ -196,6 +222,16 @@ async function main() {
 
     logger.info('Shutting down...');
     sessionManager.closeAllSessions();
+    if (dbgpProxyClient?.isRegistered && proxyConfig) {
+      try {
+        await dbgpProxyClient.unregister();
+        logger.info(`Removed DBGp proxy registration for IDE key '${proxyConfig?.ideKey}'`);
+      } catch (error) {
+        logger.warn(
+          `Failed to remove DBGp proxy registration: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    }
     await dbgpServer.stop();
     process.exit(0);
   };
