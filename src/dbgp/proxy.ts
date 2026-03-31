@@ -47,7 +47,10 @@ export class DbgpProxyClient {
   private readonly xmlParser: XMLParser;
   private registration: ProxyRegistration | null = null;
 
-  constructor(private readonly config: DbgpProxyConfig) {
+  constructor(
+    private readonly config: DbgpProxyConfig,
+    private readonly commandTimeout: number = 10000
+  ) {
     this.xmlParser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '@_',
@@ -76,8 +79,9 @@ export class DbgpProxyClient {
    */
   async register(listenPort: number, supportsMultipleSessions: boolean): Promise<ProxyRegistration> {
     const multipleSessionsFlag = supportsMultipleSessions ? '1' : '0';
+    const ideKey = this.validateIdeKey(this.config.ideKey);
     const response = await this.sendProxyCommand(
-      `proxyinit -p ${listenPort} -k ${this.escapeArg(this.config.ideKey)} -m ${multipleSessionsFlag}`
+      `proxyinit -p ${listenPort} -k ${ideKey} -m ${multipleSessionsFlag}`
     );
 
     const proxyInit = this.getResponseNode(response, 'proxyinit');
@@ -103,8 +107,9 @@ export class DbgpProxyClient {
       return;
     }
 
+    const ideKey = this.validateIdeKey(this.registration.ideKey);
     const response = await this.sendProxyCommand(
-      `proxystop -k ${this.escapeArg(this.registration.ideKey)}`
+      `proxystop -k ${ideKey}`
     );
 
     const proxyStop = this.getResponseNode(response, 'proxystop');
@@ -166,7 +171,7 @@ export class DbgpProxyClient {
           socket.destroy();
           reject(new Error(`${commandName} timed out waiting for a DBGp proxy response`));
         });
-      }, 10000);
+      }, this.commandTimeout);
 
       socket.setEncoding('utf8');
 
@@ -275,14 +280,16 @@ export class DbgpProxyClient {
   }
 
   /**
-   * Escape command arguments so proxy commands survive spaces and shell-sensitive characters.
+   * Keep IDE keys compatible with the reference proxy, which splits on spaces and does not unescape quoted values.
    */
-  private escapeArg(value: string): string {
+  private validateIdeKey(value: string): string {
     if (value.includes('\0')) {
       throw new Error('DBGp proxy arguments cannot contain null bytes');
     }
     if (/[\s"\\]/.test(value)) {
-      return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+      throw new Error(
+        'DBGp proxy IDE keys must not contain spaces, quotes, or backslashes because the reference proxy does not parse escaped arguments.'
+      );
     }
 
     return value;

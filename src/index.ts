@@ -20,7 +20,20 @@ import { logger } from './utils/logger.js';
  */
 async function main() {
   const config = loadConfig();
-  const proxyConfig = config.proxy;
+  const proxyIntegration = config.proxy
+    ? {
+        config: config.proxy,
+        // Reuse the server command timeout so proxy control traffic follows the same operator expectation.
+        client: new DbgpProxyClient(
+          {
+            host: config.proxy.host,
+            port: config.proxy.port,
+            ideKey: config.proxy.ideKey,
+          },
+          config.commandTimeout
+        ),
+      }
+    : null;
 
   logger.info('Starting Xdebug MCP Server...');
   logger.debug('Configuration:', config);
@@ -33,13 +46,6 @@ async function main() {
     socketPath: config.dbgpSocketPath,
     commandTimeout: config.commandTimeout,
   });
-  const dbgpProxyClient = proxyConfig
-    ? new DbgpProxyClient({
-        host: proxyConfig.host,
-        port: proxyConfig.port,
-        ideKey: proxyConfig.ideKey,
-      })
-    : null;
 
   // Create tools context early so we can access pendingBreakpoints
   const toolsContext: ToolsContext = createToolsContext(sessionManager);
@@ -179,7 +185,8 @@ async function main() {
     process.exit(1);
   }
 
-  if (dbgpProxyClient && proxyConfig) {
+  if (proxyIntegration) {
+    const { client: dbgpProxyClient, config: proxyConfig } = proxyIntegration;
     try {
       // Register only after the TCP listener is live so the proxy never routes sessions to a dead endpoint.
       const registration = await dbgpProxyClient.register(config.dbgpPort, true);
@@ -233,11 +240,12 @@ async function main() {
 
     logger.info('Shutting down...');
     sessionManager.closeAllSessions();
-    if (dbgpProxyClient?.isRegistered && proxyConfig) {
+    if (proxyIntegration?.client.isRegistered) {
+      const { client: dbgpProxyClient, config: proxyConfig } = proxyIntegration;
       try {
         // Unregister first so the proxy stops routing new sessions while this process is exiting.
         await dbgpProxyClient.unregister();
-        logger.info(`Removed DBGp proxy registration for IDE key '${proxyConfig?.ideKey}'`);
+        logger.info(`Removed DBGp proxy registration for IDE key '${proxyConfig.ideKey}'`);
       } catch (error) {
         logger.warn(
           `Failed to remove DBGp proxy registration: ${error instanceof Error ? error.message : String(error)}`

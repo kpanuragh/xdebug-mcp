@@ -7,11 +7,15 @@ import { logger } from './utils/logger.js';
 
 const PathMappingsSchema = z.record(z.string(), z.string());
 const LogLevelSchema = z.enum(['debug', 'info', 'warn', 'error']);
+const ProxyIdeKeySchema = z.string().min(1).refine(
+  (value) => !/[\0\s"\\]/.test(value),
+  'DBGP_IDEKEY must not contain spaces, quotes, backslashes, or null bytes because the reference DBGp proxy does not parse escaped arguments.'
+);
 
 const ProxyConfigSchema = z.object({
   host: z.string().min(1),
   port: z.number().int().positive(),
-  ideKey: z.string().min(1),
+  ideKey: ProxyIdeKeySchema,
   allowFallback: z.boolean().default(true),
 });
 
