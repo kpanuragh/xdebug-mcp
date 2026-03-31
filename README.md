@@ -103,161 +103,14 @@ When debugging PHP in Docker containers, you need path mappings to translate con
 
 ### With DBGp Proxy Registration
 
-If you already use a DBGp proxy, xdebug-mcp can register itself on startup in the same way a traditional IDE does. Proxy registration is optional and only activates when all proxy environment variables are present.
+If you already use a DBGp proxy, keep [`mcp-config.example.json`](./mcp-config.example.json) as the default direct-listener example and start from [`mcp-config.proxy.example.json`](./mcp-config.proxy.example.json) for proxy registration.
 
-```json
-{
-  "mcpServers": {
-    "xdebug": {
-      "command": "xdebug-mcp",
-      "env": {
-        "XDEBUG_PORT": "9006",
-        "XDEBUG_HOST": "0.0.0.0",
-        "DBGP_PROXY_HOST": "127.0.0.1",
-        "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY": "warp-mcp",
-        "DBGP_PROXY_ALLOW_FALLBACK": "false",
-        "LOG_LEVEL": "info"
-      }
-    }
-  }
-}
-```
+Proxy mode requires:
+- TCP listener mode for `xdebug-mcp` (not `XDEBUG_SOCKET_PATH`)
+- a unique callback port such as `9006`, `9007`, or `9008` for `XDEBUG_PORT`
+- `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY`
 
-Notes:
-- Proxy registration requires TCP listener mode. It does not work when `XDEBUG_SOCKET_PATH` is set.
-- In proxy mode, keep PHP/Xdebug pointed at the proxy endpoint and give xdebug-mcp its own callback port such as `9006`.
-- Do not reuse the proxy's client-facing port for `XDEBUG_PORT`.
-- On startup, xdebug-mcp sends `proxyinit -p <listen-port> -k <idekey> -m 1`.
-- On shutdown, xdebug-mcp sends `proxystop -k <idekey>`.
-- In proxy mode, give `xdebug-mcp` a little extra time to boot and register before expecting proxied sessions to route successfully.
-- If `DBGP_PROXY_ALLOW_FALLBACK=false`, startup fails when proxy registration fails.
-- If `DBGP_PROXY_ALLOW_FALLBACK=true`, the server logs the error and continues in direct-listener mode.
-- In fallback mode, `xdebug-mcp` still starts successfully and behaves like a normal direct listener even though proxy registration did not succeed.
-- If you run multiple AI agents at the same time, each `xdebug-mcp` instance must use a unique `DBGP_IDEKEY` and a unique `XDEBUG_PORT`.
-- Example values: Warp = `warp-mcp` on `9006`, Claude Code = `claude-mcp` on `9007`, Codex = `codex-mcp` on `9008`.
-- Do not install `xdebug-mcp` behind an MCP proxy or bundler when you need unique per-agent registrations. Register `xdebug-mcp` directly in each agent instead.
-
-### DBGp Proxy Configuration Guide
-
-Use this mode when PHP should connect to a DBGp proxy, and the proxy should route sessions to xdebug-mcp by IDE key.
-
-#### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `XDEBUG_PORT` | Yes | TCP callback port where `xdebug-mcp` listens for proxied DBGp sessions. Example: `9006`. This is **not** the proxy's port and must be unique per running `xdebug-mcp` instance. |
-| `XDEBUG_HOST` | No | Interface for the local callback listener. Defaults to `0.0.0.0`. |
-| `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
-| `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` / `proxystop`. Example: `9001`. |
-| `DBGP_IDEKEY` | Yes | IDE key that the proxy should route to this MCP server. Use a value distinct from PhpStorm and distinct from every other running agent, for example `warp-mcp`, `claude-mcp`, or `codex-mcp`. |
-| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), keep running in direct-listener mode if proxy registration fails, so `xdebug-mcp` still starts as a normal direct listener. When `false`, exit startup on registration failure. |
-
-Important constraints:
-- `XDEBUG_SOCKET_PATH` cannot be used together with DBGp proxy registration in the current implementation.
-- `XDEBUG_PORT` is the MCP callback listener port. PHP/Xdebug should still connect to the proxy's client-facing port. When multiple agents are active, each agent needs its own unique callback port.
-- Use a dedicated IDE key for each `xdebug-mcp` instance. Do not reuse the same IDE key as PhpStorm or another agent.
-- If you need separate registrations for multiple AI agents, do not place `xdebug-mcp` behind an MCP proxy or bundler. Register it directly in each agent's MCP configuration.
-
-#### MCP Configuration Examples
-
-**Installed package:**
-
-```json
-{
-  "mcpServers": {
-    "xdebug": {
-      "command": "xdebug-mcp",
-      "env": {
-        "XDEBUG_PORT": "9006",
-        "XDEBUG_HOST": "0.0.0.0",
-        "DBGP_PROXY_HOST": "127.0.0.1",
-        "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY": "warp-mcp",
-        "DBGP_PROXY_ALLOW_FALLBACK": "false",
-        "LOG_LEVEL": "info"
-      }
-    }
-  }
-}
-```
-
-**Run from a local source checkout:**
-
-```json
-{
-  "mcpServers": {
-    "xdebug": {
-      "command": "node",
-      "args": ["/absolute/path/to/xdebug-mcp/dist/index.js"],
-      "env": {
-        "XDEBUG_PORT": "9006",
-        "XDEBUG_HOST": "0.0.0.0",
-        "DBGP_PROXY_HOST": "127.0.0.1",
-        "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY": "warp-mcp",
-        "DBGP_PROXY_ALLOW_FALLBACK": "false",
-        "LOG_LEVEL": "info"
-      }
-    }
-  }
-}
-```
-
-Use the `node .../dist/index.js` form when running an unpublished local branch.
-The examples above show a Warp-style registration. For other agents, keep the same structure but swap in values such as `claude-mcp` with `9007` or `codex-mcp` with `9008`.
-
-#### Multiple AI Agents
-
-If you run more than one AI agent against the same DBGp proxy, each agent must start its own `xdebug-mcp` process directly and use unique registration values.
-
-Suggested values:
-- Warp: `DBGP_IDEKEY=warp-mcp`, `XDEBUG_PORT=9006`
-- Claude Code: `DBGP_IDEKEY=claude-mcp`, `XDEBUG_PORT=9007`
-- Codex: `DBGP_IDEKEY=codex-mcp`, `XDEBUG_PORT=9008`
-
-Keep PHP/Xdebug pointed at the proxy's client-facing port, then trigger the target agent using the matching IDE key.
-
-Do not install `xdebug-mcp` behind an MCP proxy or bundler in this setup. The uniqueness requirement applies to the actual `xdebug-mcp` process that registers with the DBGp proxy, so each agent needs its own direct registration.
-
-#### How Registration Works
-
-1. `xdebug-mcp` starts its local TCP listener on `XDEBUG_HOST:XDEBUG_PORT`.
-2. If `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` are present, it opens a control connection to the DBGp proxy.
-3. It sends:
-   - `proxyinit -p <XDEBUG_PORT> -k <DBGP_IDEKEY> -m 1`
-4. The proxy stores that registration and routes matching IDE-key sessions back to `xdebug-mcp`.
-5. On shutdown, `xdebug-mcp` sends:
-   - `proxystop -k <DBGP_IDEKEY>`
-
-Depending on your environment, this registration step can add a small startup delay, so give the MCP server a moment to finish booting before expecting the proxy to route sessions to it.
-
-#### PHP/Xdebug Side In Proxy Mode
-
-When using a DBGp proxy, PHP should point to the proxy, not directly to `xdebug-mcp`:
-
-```ini
-[xdebug]
-zend_extension=xdebug
-xdebug.mode=debug
-xdebug.start_with_request=trigger
-xdebug.client_host=127.0.0.1
-xdebug.client_port=9003
-```
-
-Then trigger the request with the IDE key registered for `xdebug-mcp`, for example:
-- `XDEBUG_TRIGGER=warp-mcp`
-- `XDEBUG_TRIGGER=claude-mcp`
-- `XDEBUG_TRIGGER=codex-mcp`
-
-You can use the same values with `XDEBUG_SESSION` if that matches your workflow.
-
-#### DBGp Proxy Binary / Download
-
-The official Xdebug DBGp proxy documentation, source, and download guidance are here:
-- https://xdebug.org/docs/dbgpProxy
-
-Use that page for installation details and the current recommended binary/source distribution method for the proxy.
+See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
 
 ## PHP/Xdebug Configuration
 
@@ -513,13 +366,9 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode). In DBGp proxy mode, set this to a separate callback port such as `9006`, `9007`, or `9008`, not the proxy's client-facing port, and keep it unique per running `xdebug-mcp` instance |
+| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
 | `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
-| `DBGP_PROXY_HOST` | - | DBGp proxy host for optional IDE registration |
-| `DBGP_PROXY_PORT` | - | DBGp proxy port for optional IDE registration (typically `9001`) |
-| `DBGP_IDEKEY` | - | IDE key to register with the DBGp proxy. Keep it unique per running `xdebug-mcp` instance or agent |
-| `DBGP_PROXY_ALLOW_FALLBACK` | `true` | Continue in direct-listener mode when proxy registration fails |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |
 | `MAX_DEPTH` | `3` | Max depth for variable inspection |
@@ -564,7 +413,6 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 **Connection Options:**
 - **TCP (Default):** `xdebug.client_host=127.0.0.1` + `XDEBUG_PORT=9003`
 - **Unix Socket:** `xdebug.client_host=unix:///tmp/xdebug.sock` + `XDEBUG_SOCKET_PATH=/tmp/xdebug.sock`
-- **DBGp Proxy:** Keep xdebug-mcp listening on TCP, set `XDEBUG_PORT` to a unique callback port per agent such as `9006`, `9007`, or `9008`, and set `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` so the server registers itself with your proxy on startup
 
 ## Troubleshooting
 
@@ -594,26 +442,6 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 3. **Socket path in php.ini:**
    - Correct: `xdebug.client_host=unix:///tmp/xdebug.sock`
    - Wrong: `xdebug.client_host=unix:/tmp/xdebug.sock` (missing one `/`)
-
-### DBGp proxy issues
-
-1. **Server starts but never registers with the proxy**
-   - Set `LOG_LEVEL=debug`
-   - Verify `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` are all present
-2. **Proxy mode with Unix sockets**
-   - Remove `XDEBUG_SOCKET_PATH`
-   - DBGp proxy registration requires TCP listener mode
-3. **Proxy registration failure should stop startup**
-   - Set `DBGP_PROXY_ALLOW_FALLBACK=false`
-4. **Proxy cannot route back to xdebug-mcp**
-   - Do not set `XDEBUG_PORT` to the proxy's client-facing port
-   - Use a separate callback port such as `9006`
-   - Make sure the MCP server's `XDEBUG_PORT` is reachable from the proxy
-   - Remember that the proxy uses the registration connection's source address plus the `-p` port
-5. **Multiple agents interfere with each other**
-   - Do not reuse the same `DBGP_IDEKEY` across Warp, Claude Code, Codex, PhpStorm, or any other client
-   - Do not reuse the same `XDEBUG_PORT` across multiple running `xdebug-mcp` instances
-   - Register `xdebug-mcp` directly in each agent instead of placing it behind an MCP proxy or bundler when you need unique per-agent DBGp registrations
 
 ### Breakpoints not hitting
 

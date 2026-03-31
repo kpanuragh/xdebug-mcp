@@ -27,6 +27,19 @@ XDEBUG_SOCKET_PATH=/tmp/xdebug.sock  # Socket path
 DEBUG=xdebug-mcp              # Enable debug output
 ```
 
+Optional DBGp proxy registration:
+
+```bash
+DBGP_PROXY_HOST=127.0.0.1
+DBGP_PROXY_PORT=9001
+DBGP_IDEKEY=claude-mcp
+DBGP_PROXY_ALLOW_FALLBACK=true
+```
+
+`DBGP_IDEKEY` should stay simple ASCII without spaces, quotes, or backslashes so it remains compatible with the reference `dbgpProxy` parser.
+
+For the full proxy-mode workflow, see the [DBGp Proxy Registration Guide](/guides/dbgp-proxy-registration/).
+
 ### Usage Examples
 
 **TCP Mode (Default):**

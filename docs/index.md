@@ -59,6 +59,7 @@ claude mcp add xdebug-mcp npx xdebug-mcp
 ### Getting Started
 - **[Agent Integration Guide](guides/agent-integration/)** ⭐ — Setup for Claude, Cursor, Cline, VS Code, Copilot, Windsurf, PhpStorm
 - **[Installation & Setup](guides/getting-started/)** — Prerequisites and installation
+- **[DBGp Proxy Registration Guide](guides/dbgp-proxy-registration/)** — Configure proxy routing, IDE keys, and multi-agent callback ports
 - **[Debugging Guide](guides/debugging-guide/)** — Learn debugging workflows
 
 ### Configuration & Reference
