@@ -40,6 +40,24 @@ DBGP_PROXY_ALLOW_FALLBACK=true
 
 For the full proxy-mode workflow, see the [DBGp Proxy Registration Guide](/guides/dbgp-proxy-registration/).
 
+### MCP Transport Configuration
+
+By default, xdebug-mcp communicates with MCP clients over stdio. For shared daemon mode (multiple AI agent sessions sharing one server), use the HTTP transport:
+
+```bash
+# MCP Transport mode (default: stdio)
+MCP_TRANSPORT=http       # Run as shared HTTP daemon
+MCP_HTTP_PORT=3100       # HTTP endpoint port (default: 3100)
+MCP_HTTP_HOST=127.0.0.1  # HTTP bind address (default: 127.0.0.1)
+```
+
+**Shared daemon mode:**
+```bash
+MCP_TRANSPORT=http MCP_HTTP_PORT=3100 xdebug-mcp
+```
+
+MCP clients connect with `"type": "http", "url": "http://localhost:3100/mcp"` instead of the stdio command config. See [Connection Modes](./connection-modes) for details.
+
 ### Usage Examples
 
 **TCP Mode (Default):**

@@ -119,6 +119,70 @@ Suitable for: Local development, high performance
 
 ---
 
+## MCP Transport Modes
+
+The connection modes above (TCP and Unix Socket) control how **PHP/Xdebug connects to xdebug-mcp** (the DBGp side). MCP transport modes control how **MCP clients (Claude, etc.) connect to xdebug-mcp** (the MCP side). These are independent -- you can combine any DBGp mode with any MCP transport.
+
+### stdio (Default)
+
+Each MCP client spawns its own xdebug-mcp process. Communication happens over stdin/stdout.
+
+```bash
+# Client config (Claude Code)
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": { "XDEBUG_PORT": "9003" }
+    }
+  }
+}
+```
+
+### HTTP (Shared Daemon)
+
+One xdebug-mcp process runs as a long-lived daemon. Multiple MCP clients connect over HTTP.
+
+**Start the daemon:**
+```bash
+MCP_TRANSPORT=http xdebug-mcp
+```
+
+**Client config:**
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "type": "http",
+      "url": "http://localhost:3100/mcp"
+    }
+  }
+}
+```
+
+**Auto-start with systemd:**
+```bash
+cp examples/xdebug-mcp.service ~/.config/systemd/user/
+systemctl --user enable --now xdebug-mcp
+```
+
+### Comparison
+
+| Feature | stdio | HTTP |
+|---------|-------|------|
+| **Sessions** | One MCP client per process | Multiple MCP clients share one daemon |
+| **Lifecycle** | Tied to MCP client process | Long-running daemon |
+| **Setup** | Zero config (default) | Start daemon separately (systemd recommended) |
+| **Port conflict** | Each instance tries to bind DBGp port | One daemon owns the DBGp port |
+| **Client config** | `"command": "xdebug-mcp"` | `"type": "http", "url": "http://..."` |
+
+### When to Use Each
+
+- **stdio**: Single AI agent session, getting started, simple setups
+- **HTTP**: Multiple concurrent AI agent sessions, CI/automation, long-running debug server
+
+---
+
 ## Performance Comparison
 
 ### Latency Test
