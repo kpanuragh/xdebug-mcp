@@ -7,6 +7,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { randomUUID } from 'node:crypto';
+import * as http from 'node:http';
 import { loadConfig } from './config.js';
 import { DbgpProxyClient } from './dbgp/proxy.js';
 import { DbgpServer } from './dbgp/server.js';
@@ -14,6 +17,37 @@ import { SessionManager } from './session/manager.js';
 import type { DebugSession } from './session/session.js';
 import { registerAllTools, createToolsContext, ToolsContext } from './tools/index.js';
 import { logger } from './utils/logger.js';
+
+/**
+ * Create a configured MCP server with all debugging tools registered.
+ * In HTTP mode this is called once per client session; in stdio mode, once.
+ */
+function createMcpServer(ctx: ToolsContext): McpServer {
+  const server = new McpServer({
+    name: 'xdebug-mcp',
+    version: '1.0.0',
+  });
+  registerAllTools(server, ctx);
+  return server;
+}
+
+/**
+ * Collect and JSON-parse the request body from an incoming HTTP request.
+ */
+function collectBody(req: http.IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString()));
+      } catch (err) {
+        reject(err);
+      }
+    });
+    req.on('error', reject);
+  });
+}
 
 /**
  * Start the MCP server and optionally register its DBGp listener with an external proxy.
@@ -210,13 +244,7 @@ async function main() {
     }
   }
 
-  // Initialize MCP server
-  const mcpServer = new McpServer({
-    name: 'xdebug-mcp',
-    version: '1.0.0',
-  });
-
-  // Load saved debug profiles
+  // Load saved debug profiles (shared across all MCP sessions)
   try {
     await toolsContext.configManager.loadProfiles();
     logger.info('Loaded debug profiles');
@@ -224,13 +252,79 @@ async function main() {
     logger.debug('No saved debug profiles found');
   }
 
-  // Register all debugging tools
-  registerAllTools(mcpServer, toolsContext);
+  // --- MCP Transport ---
 
-  // Connect MCP transport (stdio)
-  const transport = new StdioServerTransport();
-  await mcpServer.connect(transport);
-  logger.info('MCP server connected via stdio');
+  // Track the HTTP server (if any) so shutdown can close it.
+  let httpServer: http.Server | undefined;
+  const httpSessions = new Map<string, { transport: StreamableHTTPServerTransport; server: McpServer }>();
+
+  if (config.mcpTransport === 'http') {
+    // HTTP daemon mode: one long-running process, multiple MCP clients connect over HTTP.
+    httpServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url || '/', `http://${req.headers.host}`);
+      if (url.pathname !== '/mcp') {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return;
+      }
+
+      try {
+        const body = req.method === 'DELETE' ? undefined : await collectBody(req);
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+        if (req.method === 'POST' && !sessionId) {
+          // New MCP client session
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+          });
+          const server = createMcpServer(toolsContext);
+          await server.connect(transport);
+
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) {
+              httpSessions.delete(sid);
+              logger.info(`MCP HTTP session closed: ${sid}`);
+            }
+          };
+
+          // handleRequest processes the initialize message and sets transport.sessionId
+          await transport.handleRequest(req, res, body);
+
+          if (transport.sessionId) {
+            httpSessions.set(transport.sessionId, { transport, server });
+            logger.info(`MCP HTTP session created: ${transport.sessionId}`);
+          }
+        } else if (sessionId && httpSessions.has(sessionId)) {
+          // Existing session
+          const session = httpSessions.get(sessionId)!;
+          await session.transport.handleRequest(req, res, body);
+        } else if (req.method === 'DELETE' && sessionId) {
+          // Session already cleaned up
+          res.writeHead(204).end();
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Bad request or unknown session' }));
+        }
+      } catch (error) {
+        logger.error('HTTP request error:', error);
+        if (!res.headersSent) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Internal server error' }));
+        }
+      }
+    });
+
+    httpServer.listen(config.mcpHttpPort, config.mcpHttpHost, () => {
+      logger.info(`MCP HTTP server listening on http://${config.mcpHttpHost}:${config.mcpHttpPort}/mcp`);
+    });
+  } else {
+    // stdio mode (default): one MCP server, one client via stdin/stdout.
+    const mcpServer = createMcpServer(toolsContext);
+    const transport = new StdioServerTransport();
+    await mcpServer.connect(transport);
+    logger.info('MCP server connected via stdio');
+  }
 
   // Graceful shutdown
   let isShuttingDown = false;
@@ -240,6 +334,16 @@ async function main() {
 
     logger.info('Shutting down...');
     sessionManager.closeAllSessions();
+
+    // Close all MCP HTTP sessions
+    if (httpServer) {
+      for (const [, { server }] of httpSessions) {
+        try { await server.close(); } catch { /* already closing */ }
+      }
+      httpSessions.clear();
+      httpServer.close();
+    }
+
     if (proxyIntegration?.client.isRegistered) {
       const { client: dbgpProxyClient, config: proxyConfig } = proxyIntegration;
       try {
@@ -261,16 +365,18 @@ async function main() {
   process.on('SIGTERM', shutdown);
   process.on('SIGHUP', shutdown);
 
-  // Handle stdin close (when parent process like Claude Code exits)
-  process.stdin.on('close', () => {
-    logger.info('stdin closed, shutting down...');
-    shutdown();
-  });
+  // Handle stdin close (when parent process like Claude Code exits) — stdio mode only
+  if (config.mcpTransport === 'stdio') {
+    process.stdin.on('close', () => {
+      logger.info('stdin closed, shutting down...');
+      shutdown();
+    });
 
-  process.stdin.on('end', () => {
-    logger.info('stdin ended, shutting down...');
-    shutdown();
-  });
+    process.stdin.on('end', () => {
+      logger.info('stdin ended, shutting down...');
+      shutdown();
+    });
+  }
 
   // Handle uncaught errors gracefully
   process.on('uncaughtException', async (error) => {

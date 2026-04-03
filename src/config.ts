@@ -19,6 +19,8 @@ const ProxyConfigSchema = z.object({
   allowFallback: z.boolean().default(true),
 });
 
+const TransportSchema = z.enum(['stdio', 'http']);
+
 const ConfigSchema = z.object({
   // DBGp server settings
   dbgpPort: z.number().int().positive().default(9003),
@@ -26,6 +28,11 @@ const ConfigSchema = z.object({
   dbgpSocketPath: z.string().optional(),
   commandTimeout: z.number().int().positive().default(30000),
   proxy: ProxyConfigSchema.optional(),
+
+  // MCP transport settings
+  mcpTransport: TransportSchema.default('stdio'),
+  mcpHttpPort: z.number().int().positive().default(3100),
+  mcpHttpHost: z.string().default('127.0.0.1'),
 
   // Path mappings for Docker
   pathMappings: z.record(z.string(), z.string()).optional(),
@@ -52,6 +59,9 @@ export function loadConfig(): Config {
     dbgpPort: parseInt(process.env.XDEBUG_PORT || '9003', 10),
     dbgpHost: process.env.XDEBUG_HOST || '0.0.0.0',
     commandTimeout: parseInt(process.env.COMMAND_TIMEOUT || '30000', 10),
+    mcpTransport: TransportSchema.parse(process.env.MCP_TRANSPORT || 'stdio'),
+    mcpHttpPort: parseInt(process.env.MCP_HTTP_PORT || '3100', 10),
+    mcpHttpHost: process.env.MCP_HTTP_HOST || '127.0.0.1',
     maxDepth: parseInt(process.env.MAX_DEPTH || '3', 10),
     maxChildren: parseInt(process.env.MAX_CHILDREN || '128', 10),
     maxData: parseInt(process.env.MAX_DATA || '2048', 10),

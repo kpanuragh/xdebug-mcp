@@ -112,6 +112,50 @@ Proxy mode requires:
 
 See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
 
+### Shared Daemon Mode (HTTP Transport)
+
+When running multiple AI agent sessions (e.g., several Claude Code windows), each session spawns its own `xdebug-mcp` process. Since only one process can bind the DBGp port (9003), the rest fail with `EADDRINUSE`.
+
+The HTTP transport mode solves this by running a single `xdebug-mcp` daemon that multiple MCP clients connect to over HTTP:
+
+```
+┌───────────┐                ┌─────────────┐  DBGp/TCP  ┌─────────┐
+│  Claude 1  │ ◄──HTTP────► │  xdebug-mcp │ ◄─────────► │  Xdebug │
+│  Claude 2  │ ◄──:3100───► │   (daemon)  │             └─────────┘
+│  Claude 3  │ ◄──/mcp────► └─────────────┘
+└───────────┘
+```
+
+**Start the daemon:**
+
+```bash
+MCP_TRANSPORT=http xdebug-mcp
+```
+
+**Client configuration** (each Claude Code session):
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "type": "http",
+      "url": "http://localhost:3100/mcp"
+    }
+  }
+}
+```
+
+See [`mcp-config.http.example.json`](./mcp-config.http.example.json) for a complete example.
+
+**Auto-start with systemd (Linux):**
+
+```bash
+cp examples/xdebug-mcp.service ~/.config/systemd/user/
+systemctl --user enable --now xdebug-mcp
+```
+
+Your PHP/Xdebug configuration stays unchanged -- PHP still connects to port 9003.
+
 ## PHP/Xdebug Configuration
 
 ### php.ini (or xdebug.ini)
@@ -375,6 +419,9 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 | `MAX_CHILDREN` | `128` | Max children to return for arrays/objects |
 | `MAX_DATA` | `2048` | Max data size per variable |
 | `LOG_LEVEL` | `info` | Log level: debug, info, warn, error |
+| `MCP_TRANSPORT` | `stdio` | MCP transport: `stdio` (default) or `http` (shared daemon) |
+| `MCP_HTTP_PORT` | `3100` | HTTP port for MCP endpoint (only with `MCP_TRANSPORT=http`) |
+| `MCP_HTTP_HOST` | `127.0.0.1` | HTTP bind address (only with `MCP_TRANSPORT=http`) |
 
 ## Connection Modes: TCP vs Unix Socket
 
@@ -404,15 +451,26 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 5. **DBGp commands** are sent to Xdebug, responses parsed and returned
 
 ```
+stdio mode (default):
 ┌─────────────┐     MCP/stdio      ┌─────────────┐   DBGp/TCP or    ┌─────────────┐
 │   Claude    │ ◄────────────────► │  xdebug-mcp │ ◄─ Unix Socket ──► │   Xdebug    │
 │  (AI Agent) │                    │   Server    │                   │  (in PHP)   │
 └─────────────┘                    └─────────────┘                   └─────────────┘
+
+HTTP daemon mode (MCP_TRANSPORT=http):
+┌─────────────┐                    ┌─────────────┐   DBGp/TCP or    ┌─────────────┐
+│  Claude 1   │ ◄──HTTP :3100───► │  xdebug-mcp │ ◄─ Unix Socket ──► │   Xdebug    │
+│  Claude 2   │ ◄──────/mcp────► │   (daemon)  │                   │  (in PHP)   │
+└─────────────┘                    └─────────────┘                   └─────────────┘
 ```
 
-**Connection Options:**
+**DBGp Connection Options:**
 - **TCP (Default):** `xdebug.client_host=127.0.0.1` + `XDEBUG_PORT=9003`
 - **Unix Socket:** `xdebug.client_host=unix:///tmp/xdebug.sock` + `XDEBUG_SOCKET_PATH=/tmp/xdebug.sock`
+
+**MCP Transport Options:**
+- **stdio (Default):** One Claude session per process
+- **HTTP:** Multiple Claude sessions share one daemon (`MCP_TRANSPORT=http`)
 
 ## Troubleshooting
 
