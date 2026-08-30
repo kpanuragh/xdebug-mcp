@@ -4,7 +4,49 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { DebugStatus } from '../dbgp/types.js';
 import { SessionManager } from '../session/manager.js';
+import { DebugSession } from '../session/session.js';
+import { logger } from '../utils/logger.js';
+
+interface ExecutionResult {
+  status: DebugStatus;
+  file?: string;
+  line?: number;
+}
+
+/**
+ * Acknowledge script completion so the PHP process can exit.
+ *
+ * When a script reaches its end, the engine replies with status "stopping" and
+ * waits for the client to acknowledge before shutting down. Without that
+ * acknowledgment the PHP process stays alive. The connection handler in index.ts
+ * already does this for the initial run command, but the execution tools did not,
+ * so any script that finished during continue/step left a hanging PHP process.
+ */
+async function acknowledgeCompletion(
+  session: DebugSession,
+  result: ExecutionResult
+): Promise<ExecutionResult> {
+  if (result.status !== 'stopping') {
+    return result;
+  }
+
+  logger.info(`Script completed for session ${session.id}, releasing PHP process`);
+
+  try {
+    await session.stop();
+    logger.debug(`Successfully stopped session ${session.id}`);
+  } catch (stopError) {
+    logger.error(
+      `Failed to acknowledge script completion for session ${session.id}: ${stopError instanceof Error ? stopError.message : String(stopError)}`
+    );
+    logger.warn(`PHP process may not release cleanly for session ${session.id}`);
+    session.close();
+  }
+
+  return { ...result, status: 'stopped' };
+}
 
 export function registerExecutionTools(
   server: McpServer,
@@ -32,7 +74,7 @@ export function registerExecutionTools(
       }
 
       try {
-        const result = await session.run();
+        const result = await acknowledgeCompletion(session, await session.run());
 
         return {
           content: [
@@ -90,7 +132,7 @@ export function registerExecutionTools(
       }
 
       try {
-        const result = await session.stepInto();
+        const result = await acknowledgeCompletion(session, await session.stepInto());
 
         return {
           content: [
@@ -103,6 +145,8 @@ export function registerExecutionTools(
                 message:
                   result.status === 'break'
                     ? `Stepped to ${result.file}:${result.line}`
+                    : result.status === 'stopped'
+                    ? 'Script execution completed'
                     : `Status: ${result.status}`,
               }),
             },
@@ -146,7 +190,7 @@ export function registerExecutionTools(
       }
 
       try {
-        const result = await session.stepOver();
+        const result = await acknowledgeCompletion(session, await session.stepOver());
 
         return {
           content: [
@@ -159,6 +203,8 @@ export function registerExecutionTools(
                 message:
                   result.status === 'break'
                     ? `Stepped to ${result.file}:${result.line}`
+                    : result.status === 'stopped'
+                    ? 'Script execution completed'
                     : `Status: ${result.status}`,
               }),
             },
@@ -202,7 +248,7 @@ export function registerExecutionTools(
       }
 
       try {
-        const result = await session.stepOut();
+        const result = await acknowledgeCompletion(session, await session.stepOut());
 
         return {
           content: [
@@ -215,6 +261,8 @@ export function registerExecutionTools(
                 message:
                   result.status === 'break'
                     ? `Stepped out to ${result.file}:${result.line}`
+                    : result.status === 'stopped'
+                    ? 'Script execution completed'
                     : `Status: ${result.status}`,
               }),
             },
