@@ -17,6 +17,14 @@ import {
 } from '../dbgp/types.js';
 import { logger } from '../utils/logger.js';
 
+export interface ExecutionResult {
+  status: DebugStatus;
+  file?: string;
+  line?: number;
+  /** Set when the engine could not be acknowledged cleanly on completion. */
+  warning?: string;
+}
+
 export interface SessionState {
   id: string;
   status: DebugStatus;
@@ -292,22 +300,22 @@ export class DebugSession extends EventEmitter {
 
   // === Execution Control ===
 
-  async run(): Promise<{ status: DebugStatus; file?: string; line?: number }> {
+  async run(): Promise<ExecutionResult> {
     const response = await this.connection.sendCommand('run');
     return this.handleStepResponse(response);
   }
 
-  async stepInto(): Promise<{ status: DebugStatus; file?: string; line?: number }> {
+  async stepInto(): Promise<ExecutionResult> {
     const response = await this.connection.sendCommand('step_into');
     return this.handleStepResponse(response);
   }
 
-  async stepOver(): Promise<{ status: DebugStatus; file?: string; line?: number }> {
+  async stepOver(): Promise<ExecutionResult> {
     const response = await this.connection.sendCommand('step_over');
     return this.handleStepResponse(response);
   }
 
-  async stepOut(): Promise<{ status: DebugStatus; file?: string; line?: number }> {
+  async stepOut(): Promise<ExecutionResult> {
     const response = await this.connection.sendCommand('step_out');
     return this.handleStepResponse(response);
   }
@@ -321,11 +329,40 @@ export class DebugSession extends EventEmitter {
     await this.connection.sendCommand('detach');
   }
 
-  private handleStepResponse(response: DbgpResponse): {
-    status: DebugStatus;
-    file?: string;
-    line?: number;
-  } {
+  /**
+   * Acknowledge script completion so the PHP process can exit.
+   *
+   * When a script reaches its end the engine replies with status "stopping" and
+   * waits for the client to acknowledge before shutting down. Without that
+   * acknowledgment the PHP process stays alive. Results with any other status
+   * are returned untouched, so this is safe to wrap around every run/step.
+   */
+  async acknowledgeCompletion(result: ExecutionResult): Promise<ExecutionResult> {
+    if (result.status !== 'stopping') {
+      return result;
+    }
+
+    logger.info(`Script completed for session ${this.id}, releasing PHP process`);
+
+    try {
+      await this.stop();
+      logger.debug(`Successfully stopped session ${this.id}`);
+      return { ...result, status: 'stopped' };
+    } catch (stopError) {
+      const message = stopError instanceof Error ? stopError.message : String(stopError);
+      logger.error(`Failed to acknowledge script completion for session ${this.id}: ${message}`);
+      logger.warn(`PHP process may not release cleanly for session ${this.id}`);
+      // Force the socket shut so the engine is released even without an acknowledgment.
+      this.close();
+      return {
+        ...result,
+        status: 'stopped',
+        warning: `Completion acknowledgment failed (${message}); connection was closed forcibly`,
+      };
+    }
+  }
+
+  private handleStepResponse(response: DbgpResponse): ExecutionResult {
     const status = response.status || 'break';
     this.status = status;
 

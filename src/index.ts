@@ -94,22 +94,9 @@ async function main() {
         // Handle all possible execution states
         switch (result.status) {
           case 'stopping': {
-            // Script finished, engine waiting for client acknowledgment
-            logger.info(`Script completed for session ${session.id}, releasing PHP process`);
-
-            try {
-              // When script finishes (status=stopping), send stop to release PHP process.
-              // DBGp "stopping" state means the script completed but the engine is waiting
-              // for client acknowledgment before shutting down.
-              await session.stop();
-              logger.debug(`Successfully stopped session ${session.id}`);
-            } catch (stopError) {
-              logger.error(
-                `Failed to acknowledge script completion for session ${session.id}: ${stopError instanceof Error ? stopError.message : String(stopError)}`
-              );
-              logger.warn(`PHP process may not release cleanly for session ${session.id}`);
-              session.close();
-            }
+            // Script finished, engine waiting for client acknowledgment before it
+            // shuts down — same handling the execution tools use.
+            await session.acknowledgeCompletion(result);
             break;
           }
 
