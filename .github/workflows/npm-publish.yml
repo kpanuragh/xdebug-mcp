@@ -9,6 +9,11 @@ on:
     tags:
       - 'v*'
 
+# Neither job uses the GITHUB_TOKEN; npm auth goes through NODE_AUTH_TOKEN.
+# Read-only contents is all `actions/checkout` needs.
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
