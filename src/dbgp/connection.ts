@@ -4,6 +4,7 @@
  */
 
 import * as net from 'net';
+import { randomUUID } from 'crypto';
 import { EventEmitter } from 'events';
 import { XMLParser } from 'fast-xml-parser';
 import {
@@ -59,7 +60,7 @@ export class DbgpConnection extends EventEmitter {
     private commandTimeout: number = 30000
   ) {
     super();
-    this.id = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    this.id = randomUUID();
     this.remoteAddress = `${socket.remoteAddress}:${socket.remotePort}`;
 
     this.xmlParser = new XMLParser({
