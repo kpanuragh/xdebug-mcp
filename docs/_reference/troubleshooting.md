@@ -119,9 +119,10 @@ Try specific address:
 XDEBUG_HOST=127.0.0.1 xdebug-mcp
 ```
 
-Or all interfaces:
+Or all interfaces. DBGp has no authentication of its own, so restrict
+sessions to a known IDE key whenever the listener leaves loopback:
 ```bash
-XDEBUG_HOST=0.0.0.0 xdebug-mcp
+XDEBUG_HOST=0.0.0.0 XDEBUG_IDEKEY=mcp xdebug-mcp
 ```
 
 Check firewall:
@@ -147,7 +148,7 @@ tail -f /tmp/xdebug-mcp.log
 
 Reset to defaults:
 ```bash
-XDEBUG_PORT=9003 XDEBUG_HOST=0.0.0.0 xdebug-mcp
+XDEBUG_PORT=9003 XDEBUG_HOST=127.0.0.1 xdebug-mcp
 ```
 
 ---
@@ -664,21 +665,28 @@ php -i | grep -i xdebug
 
 ### "IDE Key mismatch"
 
-**Problem:** Xdebug uses wrong IDE key
+**Problem:** The key Xdebug presents does not match the key the server
+requires, so the session is rejected with `IDE key mismatch` in the server log.
 
-**Solution:**
+Two separate settings have to agree:
 
-Set in php.ini:
+**PHP side** — the key Xdebug sends. Set in php.ini:
 ```ini
 xdebug.idekey=xdebug-mcp
 ```
 
-Or environment variable:
+Or per-process:
 ```bash
-export XDEBUG_IDEKEY=xdebug-mcp
+XDEBUG_CONFIG="idekey=xdebug-mcp" php script.php
 ```
 
-Verify:
+**Server side** — the key the listener accepts. Leave `XDEBUG_IDEKEY` unset to
+accept any key, or set it to the same value:
+```bash
+XDEBUG_IDEKEY=xdebug-mcp xdebug-mcp
+```
+
+Verify the PHP side:
 ```bash
 php -r "echo ini_get('xdebug.idekey');"
 ```
