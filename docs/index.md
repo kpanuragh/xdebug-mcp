@@ -180,11 +180,18 @@ Configure the server with environment variables:
 
 ```bash
 # TCP Configuration
-XDEBUG_HOST=0.0.0.0              # Bind address (default: 0.0.0.0)
+XDEBUG_HOST=127.0.0.1            # Bind address (default: 127.0.0.1)
 XDEBUG_PORT=9003                 # Listen port (default: 9003)
 
 # Unix Socket Configuration
 XDEBUG_SOCKET_PATH=/tmp/xdebug.sock   # Socket path (for Unix sockets)
+
+# Session admission
+XDEBUG_IDEKEY=mcp                 # Require this IDE key (unset accepts any)
+
+# Limits
+MAX_MESSAGE_LENGTH=16777216       # Max declared DBGp message size, bytes
+HANDSHAKE_TIMEOUT=30000           # Drop peers that never send init, ms
 
 # Logging
 DEBUG=xdebug-mcp                  # Enable verbose logging

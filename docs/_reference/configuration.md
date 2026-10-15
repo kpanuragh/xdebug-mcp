@@ -17,11 +17,20 @@ Configure the MCP Server via environment variables:
 
 ```bash
 # TCP Configuration
-XDEBUG_HOST=0.0.0.0          # Bind address
+XDEBUG_HOST=127.0.0.1        # Bind address (default: loopback)
 XDEBUG_PORT=9003             # Listen port
 
 # Unix Socket Configuration
 XDEBUG_SOCKET_PATH=/tmp/xdebug.sock  # Socket path
+
+# Session admission
+XDEBUG_IDEKEY=mcp            # Require this IDE key; others are rejected
+                             # (unset accepts any key)
+
+# Limits
+COMMAND_TIMEOUT=30000        # Per-command timeout, ms
+MAX_MESSAGE_LENGTH=16777216  # Reject DBGp messages declaring more bytes
+HANDSHAKE_TIMEOUT=30000      # Drop peers that never send an init packet, ms
 
 # Logging
 DEBUG=xdebug-mcp              # Enable debug output
@@ -46,7 +55,7 @@ For the full proxy-mode workflow, see the [DBGp Proxy Registration Guide](/guide
 ```bash
 xdebug-mcp
 # or explicit
-XDEBUG_HOST=0.0.0.0 XDEBUG_PORT=9003 xdebug-mcp
+XDEBUG_HOST=0.0.0.0 XDEBUG_IDEKEY=mcp XDEBUG_PORT=9003 xdebug-mcp
 ```
 
 **Unix Socket Mode:**

@@ -42,10 +42,14 @@ user running PHP.
 The following are deployment considerations rather than vulnerabilities in
 themselves, but are worth getting right:
 
-- **Bind address.** `XDEBUG_HOST` defaults to `0.0.0.0`, which accepts DBGp
-  connections on every interface. Set it to `127.0.0.1`, or use
-  `XDEBUG_SOCKET_PATH`, unless you specifically need connections from another
-  host such as a Docker container.
+- **Bind address.** `XDEBUG_HOST` defaults to `127.0.0.1`. Widening it exposes
+  an unauthenticated debug channel to the network, so set `XDEBUG_IDEKEY` as
+  well whenever you do, and prefer `XDEBUG_SOCKET_PATH` where a Unix socket
+  will serve.
+- **IDE key.** With `XDEBUG_IDEKEY` set, inbound sessions presenting a
+  different key are rejected before reaching the client. It is a routing
+  credential shared in plaintext, not a secret; it is not a substitute for
+  keeping the listener off untrusted networks.
 - **Transport.** DBGp is neither authenticated nor encrypted. Do not expose
   the listener to an untrusted network.
 - **Session data.** A debug session exposes request state to the connected MCP

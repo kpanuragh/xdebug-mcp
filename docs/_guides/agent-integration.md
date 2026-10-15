@@ -442,6 +442,9 @@ services:
     environment:
       XDEBUG_HOST: 0.0.0.0
       XDEBUG_PORT: 9003
+      # The listener is reachable from the compose network, so restrict
+      # sessions to the same IDE key the PHP service uses.
+      XDEBUG_IDEKEY: xdebug-mcp
 ```
 
 **Run with:**

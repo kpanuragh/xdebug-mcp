@@ -19,7 +19,11 @@ Xdebug MCP supports two connection modes: TCP and Unix Domain Sockets. Choose ba
 ```bash
 xdebug-mcp
 # or explicit
-XDEBUG_HOST=0.0.0.0 XDEBUG_PORT=9003 xdebug-mcp
+XDEBUG_HOST=127.0.0.1 XDEBUG_PORT=9003 xdebug-mcp
+
+# Reachable from another host (a container, say). DBGp is unauthenticated,
+# so restrict sessions to a known IDE key when you do this.
+XDEBUG_HOST=0.0.0.0 XDEBUG_IDEKEY=mcp xdebug-mcp
 ```
 
 **php.ini:**
