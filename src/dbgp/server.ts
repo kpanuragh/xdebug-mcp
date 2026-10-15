@@ -14,6 +14,10 @@ export interface DbgpServerConfig {
   port?: number;
   socketPath?: string;
   commandTimeout?: number;
+  /** Reject inbound sessions presenting a different IDE key. Unset accepts any. */
+  expectedIdeKey?: string;
+  maxMessageLength?: number;
+  handshakeTimeout?: number;
 }
 
 export interface DbgpServerEvents {
@@ -26,7 +30,11 @@ export interface DbgpServerEvents {
 export class DbgpServer extends EventEmitter {
   private server: net.Server | null = null;
   private connections: Map<string, DbgpConnection> = new Map();
-  private config: DbgpServerConfig & { commandTimeout: number };
+  private config: DbgpServerConfig & {
+    commandTimeout: number;
+    maxMessageLength: number;
+    handshakeTimeout: number;
+  };
   private isUnixSocket: boolean;
 
   constructor(config: DbgpServerConfig) {
@@ -37,6 +45,9 @@ export class DbgpServer extends EventEmitter {
       port: config.port,
       socketPath: config.socketPath,
       commandTimeout: config.commandTimeout ?? 30000,
+      expectedIdeKey: config.expectedIdeKey,
+      maxMessageLength: config.maxMessageLength ?? 16 * 1024 * 1024,
+      handshakeTimeout: config.handshakeTimeout ?? 30000,
     };
   }
 
@@ -87,12 +98,29 @@ export class DbgpServer extends EventEmitter {
   }
 
   private handleConnection(socket: net.Socket): void {
-    const connection = new DbgpConnection(socket, this.config.commandTimeout);
+    const connection = new DbgpConnection(socket, this.config.commandTimeout, {
+      maxMessageLength: this.config.maxMessageLength,
+      handshakeTimeout: this.config.handshakeTimeout,
+    });
 
     logger.info(`New DBGp connection from ${connection.remoteAddress}`);
     this.connections.set(connection.id, connection);
 
-    connection.on('init', () => {
+    connection.on('init', (packet) => {
+      // DBGp carries no authentication of its own. When an IDE key is
+      // configured, it is the only thing distinguishing the engine we expect
+      // from anything else that reached the port, so a mismatch is dropped
+      // before the session is ever handed to the client.
+      const expected = this.config.expectedIdeKey;
+      if (expected && packet.ideKey !== expected) {
+        logger.warn(
+          `Rejected DBGp session from ${connection.remoteAddress}: IDE key mismatch`
+        );
+        this.connections.delete(connection.id);
+        connection.close();
+        return;
+      }
+
       this.emit('connection', connection);
     });
 

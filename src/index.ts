@@ -45,7 +45,24 @@ async function main() {
     port: config.dbgpPort,
     socketPath: config.dbgpSocketPath,
     commandTimeout: config.commandTimeout,
+    expectedIdeKey: config.expectedIdeKey,
+    maxMessageLength: config.maxMessageLength,
+    handshakeTimeout: config.handshakeTimeout,
   });
+
+  // Binding beyond loopback exposes an unauthenticated debug channel; say so
+  // once at startup rather than leaving it to be discovered.
+  if (!config.dbgpSocketPath && config.dbgpHost !== '127.0.0.1' && config.dbgpHost !== '::1') {
+    if (config.expectedIdeKey) {
+      logger.warn(
+        `DBGp listener is bound to ${config.dbgpHost}; sessions are restricted to IDE key '${config.expectedIdeKey}'.`
+      );
+    } else {
+      logger.warn(
+        `DBGp listener is bound to ${config.dbgpHost} with no IDE key configured. Any host that can reach port ${config.dbgpPort} can start a debug session. Set XDEBUG_IDEKEY, or bind 127.0.0.1.`
+      );
+    }
+  }
 
   // Create tools context early so we can access pendingBreakpoints
   const toolsContext: ToolsContext = createToolsContext(sessionManager);

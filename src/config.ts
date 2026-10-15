@@ -22,9 +22,19 @@ const ProxyConfigSchema = z.object({
 const ConfigSchema = z.object({
   // DBGp server settings
   dbgpPort: z.number().int().positive().default(9003),
-  dbgpHost: z.string().default('0.0.0.0'),
+  // Loopback by default: the DBGp protocol has no authentication, so binding
+  // every interface would let anything that can reach the port drive a debug
+  // session. Set XDEBUG_HOST explicitly to accept remote engines.
+  dbgpHost: z.string().default('127.0.0.1'),
   dbgpSocketPath: z.string().optional(),
   commandTimeout: z.number().int().positive().default(30000),
+  // Reject a DBGp message whose declared length exceeds this, so a hostile or
+  // broken peer cannot make the parser buffer without bound.
+  maxMessageLength: z.number().int().positive().default(16 * 1024 * 1024),
+  // Close a connection that has not completed its init packet in this window.
+  handshakeTimeout: z.number().int().positive().default(30000),
+  // When set, an inbound session must present this IDE key.
+  expectedIdeKey: z.string().min(1).optional(),
   proxy: ProxyConfigSchema.optional(),
 
   // Path mappings for Docker
@@ -50,8 +60,10 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(): Config {
   const rawConfig: z.input<typeof ConfigSchema> = {
     dbgpPort: parseInt(process.env.XDEBUG_PORT || '9003', 10),
-    dbgpHost: process.env.XDEBUG_HOST || '0.0.0.0',
+    dbgpHost: process.env.XDEBUG_HOST || '127.0.0.1',
     commandTimeout: parseInt(process.env.COMMAND_TIMEOUT || '30000', 10),
+    maxMessageLength: parseInt(process.env.MAX_MESSAGE_LENGTH || String(16 * 1024 * 1024), 10),
+    handshakeTimeout: parseInt(process.env.HANDSHAKE_TIMEOUT || '30000', 10),
     maxDepth: parseInt(process.env.MAX_DEPTH || '3', 10),
     maxChildren: parseInt(process.env.MAX_CHILDREN || '128', 10),
     maxData: parseInt(process.env.MAX_DATA || '2048', 10),
@@ -88,6 +100,13 @@ export function loadConfig(): Config {
       ideKey: proxyIdeKey,
       allowFallback: process.env.DBGP_PROXY_ALLOW_FALLBACK !== 'false',
     });
+  }
+
+  // An explicit XDEBUG_IDEKEY wins; otherwise a proxy IDE key doubles as the
+  // expected key, since that is what the proxy routes sessions with.
+  const expectedIdeKey = process.env.XDEBUG_IDEKEY || rawConfig.proxy?.ideKey;
+  if (expectedIdeKey) {
+    rawConfig.expectedIdeKey = expectedIdeKey;
   }
 
   // Parse path mappings from JSON if provided
