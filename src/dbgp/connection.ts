@@ -50,6 +50,7 @@ export class DbgpConnection extends EventEmitter {
   private commandQueue: Array<() => void> = [];
   private xmlParser: XMLParser;
   private closed: boolean = false;
+  private handshakeTimer: NodeJS.Timeout | null = null;
 
   public initPacket: InitPacket | null = null;
   public readonly id: string;
@@ -57,7 +58,11 @@ export class DbgpConnection extends EventEmitter {
 
   constructor(
     private socket: net.Socket,
-    private commandTimeout: number = 30000
+    private commandTimeout: number = 30000,
+    private limits: { maxMessageLength: number; handshakeTimeout: number } = {
+      maxMessageLength: 16 * 1024 * 1024,
+      handshakeTimeout: 30000,
+    }
   ) {
     super();
     this.id = randomUUID();
@@ -74,9 +79,34 @@ export class DbgpConnection extends EventEmitter {
     this.socket.on('data', (data) => this.handleData(data));
     this.socket.on('close', () => this.handleClose());
     this.socket.on('error', (err) => this.emit('error', err));
+
+    // A peer that connects and never completes an init packet holds a socket
+    // and whatever it has sent so far; drop it rather than wait forever.
+    this.handshakeTimer = setTimeout(() => {
+      if (!this.initPacket) {
+        logger.warn(
+          `Closing ${this.remoteAddress}: no init packet within ${this.limits.handshakeTimeout}ms`
+        );
+        this.abort();
+      }
+    }, this.limits.handshakeTimeout);
+    this.handshakeTimer.unref();
+  }
+
+  /** Drop the connection immediately without waiting for a protocol exchange. */
+  private abort(): void {
+    this.buffer = Buffer.alloc(0);
+    this.socket.destroy();
   }
 
   private handleData(data: Buffer): void {
+    if (this.buffer.length + data.length > this.limits.maxMessageLength) {
+      logger.error(
+        `Closing ${this.remoteAddress}: buffered data exceeds ${this.limits.maxMessageLength} bytes`
+      );
+      this.abort();
+      return;
+    }
     this.buffer = Buffer.concat([this.buffer, data]);
     this.processBuffer();
   }
@@ -95,6 +125,17 @@ export class DbgpConnection extends EventEmitter {
           logger.error('Invalid message length:', lengthStr);
           this.buffer = this.buffer.subarray(nullIndex + 1);
           continue;
+        }
+
+        // The length prefix is peer-controlled. Without a ceiling, a declared
+        // size makes the parser buffer every byte that follows until the
+        // process runs out of memory.
+        if (this.expectedLength > this.limits.maxMessageLength) {
+          logger.error(
+            `Closing ${this.remoteAddress}: declared message length ${this.expectedLength} exceeds ${this.limits.maxMessageLength}`
+          );
+          this.abort();
+          return;
         }
 
         this.buffer = this.buffer.subarray(nullIndex + 1);
@@ -122,6 +163,7 @@ export class DbgpConnection extends EventEmitter {
       // Handle init packet (first message from Xdebug)
       if (parsed.init) {
         this.initPacket = this.parseInitPacket(parsed.init);
+        this.clearHandshakeTimer();
         logger.info(`Debug session initialized: ${this.initPacket.fileUri}`);
         this.emit('init', this.initPacket);
         return;
@@ -289,8 +331,16 @@ export class DbgpConnection extends EventEmitter {
     return value;
   }
 
+  private clearHandshakeTimer(): void {
+    if (this.handshakeTimer) {
+      clearTimeout(this.handshakeTimer);
+      this.handshakeTimer = null;
+    }
+  }
+
   private handleClose(): void {
     this.closed = true;
+    this.clearHandshakeTimer();
 
     // Reject all pending commands
     for (const [txId, pending] of this.pendingCommands) {
