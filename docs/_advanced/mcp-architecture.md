@@ -336,7 +336,7 @@ MCP Client
 ### Environment Variables
 
 ```bash
-XDEBUG_HOST=0.0.0.0          # TCP bind address
+XDEBUG_HOST=127.0.0.1        # TCP bind address (default: loopback)
 XDEBUG_PORT=9003             # TCP port
 XDEBUG_SOCKET_PATH=/tmp/...  # Unix socket path
 DEBUG=xdebug-mcp             # Verbose logging
@@ -358,7 +358,7 @@ Config Detection:
   │
   └─ XDEBUG_PORT/HOST set?
      ├─ YES → Use provided values
-     └─ NO  → Use defaults (0.0.0.0:9003)
+     └─ NO  → Use defaults (127.0.0.1:9003)
 ```
 
 ## Error Handling Strategy

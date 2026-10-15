@@ -17,7 +17,7 @@ Configure the MCP Server via environment variables:
 
 ```bash
 # TCP Configuration
-XDEBUG_HOST=0.0.0.0          # Bind address
+XDEBUG_HOST=127.0.0.1        # Bind address (default: loopback)
 XDEBUG_PORT=9003             # Listen port
 
 # Unix Socket Configuration

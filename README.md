@@ -367,7 +367,10 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
-| `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
+| `XDEBUG_HOST` | `127.0.0.1` | Host to bind (TCP mode). Widen only with `XDEBUG_IDEKEY` set |
+| `XDEBUG_IDEKEY` | - | Require this IDE key on inbound sessions; others are rejected |
+| `MAX_MESSAGE_LENGTH` | `16777216` | Reject DBGp messages declaring more bytes than this |
+| `HANDSHAKE_TIMEOUT` | `30000` | Drop connections that never send an init packet (ms) |
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |

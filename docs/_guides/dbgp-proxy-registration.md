@@ -24,7 +24,7 @@ If you just want a single local debugging listener, stay with the default direct
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `XDEBUG_PORT` | Yes | TCP callback port where `xdebug-mcp` listens for proxied DBGp sessions. Example: `9006`. This is **not** the proxy's client-facing port and must be unique per running `xdebug-mcp` instance. |
-| `XDEBUG_HOST` | No | Interface for the local callback listener. Defaults to `0.0.0.0`. |
+| `XDEBUG_HOST` | No | Interface for the local callback listener. Defaults to `127.0.0.1`; widen it only if the proxy runs on another host. |
 | `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
 | `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` and `proxystop`. Example: `9001`. |
 | `DBGP_IDEKEY` | Yes | IDE key that the proxy should route to this MCP server. Use a value distinct from PhpStorm and every other running agent, for example `xdebug-warp`, `xdebug-claude`, or `xdebug-codex`. |

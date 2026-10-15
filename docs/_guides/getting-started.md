@@ -259,9 +259,14 @@ lsof -i :9003
 Configure server behavior with environment variables:
 
 ```bash
-# TCP mode (default)
-XDEBUG_HOST=0.0.0.0
+# TCP mode (default bind is 127.0.0.1)
+XDEBUG_HOST=127.0.0.1
 XDEBUG_PORT=9003
+
+# Only widen the bind when the engine runs on another host, and pair it
+# with an IDE key so stray connections are rejected
+# XDEBUG_HOST=0.0.0.0
+# XDEBUG_IDEKEY=mcp
 
 # Unix socket mode
 XDEBUG_SOCKET_PATH=/tmp/xdebug.sock
