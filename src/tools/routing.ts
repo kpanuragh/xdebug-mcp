@@ -3,6 +3,7 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
 
 export interface DebugRoute {
   ideKey: string;
@@ -14,15 +15,22 @@ export interface DebugRoute {
 
 export function registerRoutingTools(
   server: McpServer,
-  prepare: (meta: Record<string, unknown> | undefined) => Promise<DebugRoute>
+  prepare: (
+    identifier: string | undefined,
+    meta: Record<string, unknown> | undefined
+  ) => Promise<DebugRoute>
 ): void {
   server.tool(
     'prepare_debug_route',
-    'Prepare this MCP client\'s DBGp proxy route using identity metadata supplied by the client. Call before starting PHP.',
-    {},
-    async (_args, extra) => {
+    'Prepare this MCP client\'s DBGp proxy route using an explicit identifier or client metadata. Call before starting PHP.',
+    {
+      identifier: z.string().min(1).optional().describe(
+        'Stable identifier for this client session. Overrides configured MCP metadata when supplied.'
+      ),
+    },
+    async ({ identifier }, extra) => {
       try {
-        const route = await prepare(extra._meta);
+        const route = await prepare(identifier, extra._meta);
         return {
           content: [
             {

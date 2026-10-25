@@ -79,9 +79,9 @@ export function loadConfig(): Config {
 
   if (proxyHost || proxyPort || proxyIdeKey || proxyIdeKeyMetaKey) {
     // Require the full proxy tuple together so startup never lands in a half-configured mode.
-    if (!proxyHost || !proxyPort || (!proxyIdeKey && !proxyIdeKeyMetaKey)) {
+    if (!proxyHost || !proxyPort) {
       throw new Error(
-        'DBGp proxy configuration is incomplete. Set DBGP_PROXY_HOST, DBGP_PROXY_PORT, and either DBGP_IDEKEY or DBGP_IDEKEY_META_KEY.'
+        'DBGp proxy configuration is incomplete. Set DBGP_PROXY_HOST and DBGP_PROXY_PORT together.'
       );
     }
 
@@ -96,7 +96,7 @@ export function loadConfig(): Config {
       host: proxyHost,
       port: parseInt(proxyPort, 10),
       ideKey: proxyIdeKey,
-      ideKeyMetaKey: proxyIdeKeyMetaKey,
+      ideKeyMetaKey: proxyIdeKey ? proxyIdeKeyMetaKey : proxyIdeKeyMetaKey || 'threadId',
       ideKeyPrefix: process.env.DBGP_IDEKEY_PREFIX || '',
       allowFallback: process.env.DBGP_PROXY_ALLOW_FALLBACK !== 'false',
     });

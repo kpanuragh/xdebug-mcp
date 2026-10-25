@@ -28,7 +28,7 @@ If you just want a single local debugging listener, stay with the default direct
 | `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
 | `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` and `proxystop`. Example: `9001`. |
 | `DBGP_IDEKEY` | Conditional | Static IDE key that the proxy should route to this MCP server. Mutually exclusive with `DBGP_IDEKEY_META_KEY`. |
-| `DBGP_IDEKEY_META_KEY` | Conditional | MCP request metadata field used by `prepare_debug_route` to derive the IDE key. Mutually exclusive with `DBGP_IDEKEY`. |
+| `DBGP_IDEKEY_META_KEY` | No | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied. Defaults to `threadId` in dynamic mode and is mutually exclusive with `DBGP_IDEKEY`. |
 | `DBGP_IDEKEY_PREFIX` | No | Prefix added to a metadata-derived IDE key. |
 | `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), continue in direct-listener mode if proxy registration fails. When `false`, fail startup instead. |
 
@@ -101,7 +101,7 @@ Keep PHP/Xdebug pointed at the proxy's client-facing port, then trigger the targ
 
 ## Dynamic Registration for Parallel Client Sessions
 
-Clients that attach a stable session identity to MCP request metadata can avoid pre-allocating callback ports:
+Dynamic clients can avoid pre-allocating callback ports. Codex works from request metadata automatically; other clients may supply an identifier explicitly:
 
 ```json
 {
@@ -113,7 +113,6 @@ Clients that attach a stable session identity to MCP request metadata can avoid 
         "XDEBUG_HOST": "127.0.0.1",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY_META_KEY": "threadId",
         "DBGP_IDEKEY_PREFIX": "xdebug-codex-",
         "DBGP_PROXY_ALLOW_FALLBACK": "false"
       }
@@ -123,12 +122,12 @@ Clients that attach a stable session identity to MCP request metadata can avoid 
 ```
 
 1. The MCP server binds an OS-assigned callback port and exposes tools without registering a route.
-2. The client calls `prepare_debug_route`.
-3. The tool derives the IDE key from request metadata and registers the actual callback port.
+2. The client calls `prepare_debug_route`, optionally with an explicit `identifier` string.
+3. The tool uses the explicit identifier or configured request metadata and registers the actual callback port.
 4. PHP connects to the proxy's client-facing port using the returned IDE key as `XDEBUG_TRIGGER`.
 5. Process shutdown removes the proxy registration.
 
-Codex supplies `threadId` on native MCP tool calls. Other clients can use this mode when they attach a stable string under the configured metadata key.
+Codex supplies `threadId` on native MCP tool calls, so no identifier argument is needed. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
 
 ## How Registration Works
 

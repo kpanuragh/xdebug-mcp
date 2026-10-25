@@ -256,11 +256,11 @@ async function main() {
   // Register all debugging tools
   registerAllTools(mcpServer, toolsContext);
   if (proxyConfig?.ideKeyMetaKey) {
-    registerRoutingTools(mcpServer, async (meta) => {
-      const identity = meta?.[proxyConfig.ideKeyMetaKey!];
+    registerRoutingTools(mcpServer, async (explicitIdentifier, meta) => {
+      const identity = explicitIdentifier ?? meta?.[proxyConfig.ideKeyMetaKey!];
       if (typeof identity !== 'string' || identity.length === 0) {
         throw new Error(
-          `MCP client metadata is missing non-empty string '${proxyConfig.ideKeyMetaKey}'.`
+          `Pass a non-empty identifier or provide MCP metadata '${proxyConfig.ideKeyMetaKey}'.`
         );
       }
 
