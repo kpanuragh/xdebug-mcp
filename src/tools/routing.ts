@@ -40,7 +40,7 @@ export function registerRoutingTools(
                   success: true,
                   route,
                   trigger: route.ideKey,
-                  message: `Start PHP with XDEBUG_TRIGGER=${route.ideKey}`,
+                  message: `Start PHP with XDEBUG_TRIGGER=${route.ideKey}, xdebug.client_host=${route.proxyHost}, and xdebug.client_port=${route.proxyPort}`,
                 },
                 null,
                 2

@@ -123,6 +123,7 @@ For parallel Codex threads, derive the IDE key from request metadata:
         "XDEBUG_PORT": "0",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
+        "DBGP_PROXY_SERVER_PORT": "9003",
         "DBGP_IDEKEY_PREFIX": "xdebug-codex-",
         "DBGP_PROXY_ALLOW_FALLBACK": "false"
       }
@@ -131,7 +132,7 @@ For parallel Codex threads, derive the IDE key from request metadata:
 }
 ```
 
-Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value. Current Codex clients attach `threadId` to native MCP tool calls. Other clients can configure `DBGP_IDEKEY_META_KEY` or pass `identifier` directly to the tool.
+Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value plus the proxy endpoint PHP should use. Current Codex clients attach `threadId` to native MCP tool calls. Other clients can configure `DBGP_IDEKEY_META_KEY` or pass `identifier` directly to the tool.
 
 See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
 
@@ -394,6 +395,7 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
 | `DBGP_PROXY_HOST` | - | DBGp proxy control host |
 | `DBGP_PROXY_PORT` | - | DBGp proxy control port |
+| `DBGP_PROXY_SERVER_PORT` | `9003` | DBGp proxy port where PHP/Xdebug connects |
 | `DBGP_IDEKEY` | - | Static proxy IDE key; mutually exclusive with `DBGP_IDEKEY_META_KEY` |
 | `DBGP_IDEKEY_META_KEY` | `threadId` | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied |
 | `DBGP_IDEKEY_PREFIX` | - | Prefix added to a dynamic IDE key |

@@ -27,6 +27,7 @@ If you just want a single local debugging listener, stay with the default direct
 | `XDEBUG_HOST` | No | Interface for the local callback listener. Defaults to `0.0.0.0`. |
 | `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
 | `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` and `proxystop`. Example: `9001`. |
+| `DBGP_PROXY_SERVER_PORT` | No | Port where the proxy accepts PHP/Xdebug connections. Defaults to `9003`. |
 | `DBGP_IDEKEY` | Conditional | Static IDE key that the proxy should route to this MCP server. Mutually exclusive with `DBGP_IDEKEY_META_KEY`. |
 | `DBGP_IDEKEY_META_KEY` | No | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied. Defaults to `threadId` in dynamic mode and is mutually exclusive with `DBGP_IDEKEY`. |
 | `DBGP_IDEKEY_PREFIX` | No | Prefix added to a metadata-derived IDE key. |
@@ -56,6 +57,7 @@ Start from [`mcp-config.proxy.example.json`](../../mcp-config.proxy.example.json
         "XDEBUG_HOST": "0.0.0.0",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
+        "DBGP_PROXY_SERVER_PORT": "9003",
         "DBGP_IDEKEY": "xdebug-warp",
         "DBGP_PROXY_ALLOW_FALLBACK": "false",
         "LOG_LEVEL": "info"
@@ -124,8 +126,9 @@ Dynamic clients can avoid pre-allocating callback ports. Codex works from reques
 1. The MCP server binds an OS-assigned callback port and exposes tools without registering a route.
 2. The client calls `prepare_debug_route`, optionally with an explicit `identifier` string.
 3. The tool uses the explicit identifier or configured request metadata and registers the actual callback port.
-4. PHP connects to the proxy's client-facing port using the returned IDE key as `XDEBUG_TRIGGER`.
-5. Process shutdown removes the proxy registration.
+4. The tool returns the proxy-advertised debugger endpoint and IDE key.
+5. PHP connects to that endpoint using the returned IDE key as `XDEBUG_TRIGGER`.
+6. Process shutdown removes the proxy registration.
 
 Codex supplies `threadId` on native MCP tool calls, so no identifier argument is needed. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
 

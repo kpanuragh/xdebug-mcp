@@ -275,7 +275,7 @@ async function main() {
         listenerHost: config.dbgpHost,
         listenerPort,
         proxyHost: proxyConfig.host,
-        proxyPort: proxyConfig.port,
+        proxyPort: proxyConfig.serverPort,
       };
     });
   }

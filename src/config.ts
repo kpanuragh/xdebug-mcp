@@ -19,6 +19,7 @@ const ProxyIdeKeyPrefixSchema = z.string().refine(
 const ProxyConfigSchema = z.object({
   host: z.string().min(1),
   port: z.number().int().positive(),
+  serverPort: z.number().int().positive().default(9003),
   ideKey: ProxyIdeKeySchema.optional(),
   ideKeyMetaKey: z.string().min(1).optional(),
   ideKeyPrefix: ProxyIdeKeyPrefixSchema.default(''),
@@ -74,10 +75,11 @@ export function loadConfig(): Config {
 
   const proxyHost = process.env.DBGP_PROXY_HOST;
   const proxyPort = process.env.DBGP_PROXY_PORT;
+  const proxyServerPort = process.env.DBGP_PROXY_SERVER_PORT;
   const proxyIdeKey = process.env.DBGP_IDEKEY;
   const proxyIdeKeyMetaKey = process.env.DBGP_IDEKEY_META_KEY;
 
-  if (proxyHost || proxyPort || proxyIdeKey || proxyIdeKeyMetaKey) {
+  if (proxyHost || proxyPort || proxyServerPort || proxyIdeKey || proxyIdeKeyMetaKey) {
     // Require the full proxy tuple together so startup never lands in a half-configured mode.
     if (!proxyHost || !proxyPort) {
       throw new Error(
@@ -95,6 +97,7 @@ export function loadConfig(): Config {
     rawConfig.proxy = ProxyConfigSchema.parse({
       host: proxyHost,
       port: parseInt(proxyPort, 10),
+      serverPort: parseInt(proxyServerPort || '9003', 10),
       ideKey: proxyIdeKey,
       ideKeyMetaKey: proxyIdeKey ? proxyIdeKeyMetaKey : proxyIdeKeyMetaKey || 'threadId',
       ideKeyPrefix: process.env.DBGP_IDEKEY_PREFIX || '',
