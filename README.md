@@ -107,8 +107,31 @@ If you already use a DBGp proxy, keep [`mcp-config.example.json`](./mcp-config.e
 
 Proxy mode requires:
 - TCP listener mode for `xdebug-mcp` (not `XDEBUG_SOCKET_PATH`)
-- a unique callback port such as `9006`, `9007`, or `9008` for `XDEBUG_PORT`
-- `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY`
+- either a unique callback port for `XDEBUG_PORT`, or `XDEBUG_PORT=0` to let the OS assign one
+- `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and either a static `DBGP_IDEKEY` or dynamic `DBGP_IDEKEY_META_KEY`
+
+For parallel Codex threads, derive the IDE key from request metadata:
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": {
+        "XDEBUG_HOST": "127.0.0.1",
+        "XDEBUG_PORT": "0",
+        "DBGP_PROXY_HOST": "127.0.0.1",
+        "DBGP_PROXY_PORT": "9001",
+        "DBGP_IDEKEY_META_KEY": "threadId",
+        "DBGP_IDEKEY_PREFIX": "xdebug-codex-",
+        "DBGP_PROXY_ALLOW_FALLBACK": "false"
+      }
+    }
+  }
+}
+```
+
+Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value. Current Codex clients attach `threadId` to native MCP tool calls.
 
 See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
 
@@ -366,9 +389,15 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
+| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode); use `0` for an OS-assigned callback port |
 | `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
+| `DBGP_PROXY_HOST` | - | DBGp proxy control host |
+| `DBGP_PROXY_PORT` | - | DBGp proxy control port |
+| `DBGP_IDEKEY` | - | Static proxy IDE key; mutually exclusive with `DBGP_IDEKEY_META_KEY` |
+| `DBGP_IDEKEY_META_KEY` | - | MCP request metadata field used by `prepare_debug_route` as the IDE-key identity |
+| `DBGP_IDEKEY_PREFIX` | - | Prefix added to a metadata-derived IDE key |
+| `DBGP_PROXY_ALLOW_FALLBACK` | `true` | Continue in direct-listener mode if static startup registration fails |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |
 | `MAX_DEPTH` | `3` | Max depth for variable inspection |

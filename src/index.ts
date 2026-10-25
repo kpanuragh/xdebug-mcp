@@ -12,7 +12,12 @@ import { DbgpProxyClient } from './dbgp/proxy.js';
 import { DbgpServer } from './dbgp/server.js';
 import { SessionManager } from './session/manager.js';
 import type { DebugSession } from './session/session.js';
-import { registerAllTools, createToolsContext, ToolsContext } from './tools/index.js';
+import {
+  registerAllTools,
+  createToolsContext,
+  registerRoutingTools,
+  ToolsContext,
+} from './tools/index.js';
 import { logger } from './utils/logger.js';
 
 /**
@@ -20,20 +25,10 @@ import { logger } from './utils/logger.js';
  */
 async function main() {
   const config = loadConfig();
-  const proxyIntegration = config.proxy
-    ? {
-        config: config.proxy,
-        // Reuse the server command timeout so proxy control traffic follows the same operator expectation.
-        client: new DbgpProxyClient(
-          {
-            host: config.proxy.host,
-            port: config.proxy.port,
-            ideKey: config.proxy.ideKey,
-          },
-          config.commandTimeout
-        ),
-      }
-    : null;
+  const proxyConfig = config.proxy;
+  let dbgpProxyClient: DbgpProxyClient | null = null;
+  let registeredIdeKey: string | null = null;
+  let registrationPromise: Promise<void> | null = null;
 
   logger.info('Starting Xdebug MCP Server...');
   logger.debug('Configuration:', config);
@@ -163,26 +158,73 @@ async function main() {
   // Start DBGp server
   try {
     await dbgpServer.start();
-    const address = config.dbgpSocketPath
-      ? `Unix socket: ${config.dbgpSocketPath}`
-      : `${config.dbgpHost}:${config.dbgpPort}`;
-    logger.info(`DBGp server listening on ${address}`);
+    const address = dbgpServer.address;
+    const addressText = address && 'path' in address
+      ? `Unix socket: ${address.path}`
+      : address
+        ? `${address.host}:${address.port}`
+        : 'unknown';
+    logger.info(`DBGp server listening on ${addressText}`);
   } catch (error) {
     logger.error('Failed to start DBGp server:', error);
     process.exit(1);
   }
 
-  if (proxyIntegration) {
-    const { client: dbgpProxyClient, config: proxyConfig } = proxyIntegration;
-    try {
-      // Register only after the TCP listener is live so the proxy never routes sessions to a dead endpoint.
-      const registration = await dbgpProxyClient.register(config.dbgpPort, true);
+  const listenerAddress = dbgpServer.address;
+  const listenerPort = listenerAddress && 'port' in listenerAddress
+    ? listenerAddress.port
+    : null;
+
+  const ensureProxyRegistration = async (ideKey: string): Promise<void> => {
+    if (!proxyConfig || listenerPort === null) {
+      throw new Error('Dynamic routing requires a TCP listener and DBGp proxy configuration.');
+    }
+    if (registeredIdeKey && registeredIdeKey !== ideKey) {
+      throw new Error(
+        `This MCP process is already registered as '${registeredIdeKey}' and cannot switch to '${ideKey}'.`
+      );
+    }
+    if (dbgpProxyClient?.isRegistered) {
+      return;
+    }
+    if (registrationPromise) {
+      return registrationPromise;
+    }
+
+    registeredIdeKey = ideKey;
+    registrationPromise = (async () => {
+      const client = new DbgpProxyClient(
+        {
+          host: proxyConfig.host,
+          port: proxyConfig.port,
+          ideKey,
+        },
+        config.commandTimeout
+      );
+      const registration = await client.register(listenerPort, true);
+      dbgpProxyClient = client;
       const proxyTarget = registration.address && registration.port
         ? `${registration.address}:${registration.port}`
         : 'unknown proxy endpoint';
       logger.info(
         `Registered IDE key '${registration.ideKey}' with DBGp proxy ${proxyConfig.host}:${proxyConfig.port} (proxy server: ${proxyTarget})`
       );
+    })();
+
+    try {
+      await registrationPromise;
+    } catch (error) {
+      dbgpProxyClient = null;
+      registeredIdeKey = null;
+      throw error;
+    } finally {
+      registrationPromise = null;
+    }
+  };
+
+  if (proxyConfig?.ideKey) {
+    try {
+      await ensureProxyRegistration(proxyConfig.ideKey);
     } catch (error) {
       logger.error(
         `Failed to register with DBGp proxy ${proxyConfig.host}:${proxyConfig.port}: ${error instanceof Error ? error.message : String(error)}`
@@ -213,6 +255,30 @@ async function main() {
 
   // Register all debugging tools
   registerAllTools(mcpServer, toolsContext);
+  if (proxyConfig?.ideKeyMetaKey) {
+    registerRoutingTools(mcpServer, async (meta) => {
+      const identity = meta?.[proxyConfig.ideKeyMetaKey!];
+      if (typeof identity !== 'string' || identity.length === 0) {
+        throw new Error(
+          `MCP client metadata is missing non-empty string '${proxyConfig.ideKeyMetaKey}'.`
+        );
+      }
+
+      const ideKey = `${proxyConfig.ideKeyPrefix}${identity}`;
+      await ensureProxyRegistration(ideKey);
+      if (listenerPort === null) {
+        throw new Error('DBGp listener did not expose a TCP port.');
+      }
+
+      return {
+        ideKey,
+        listenerHost: config.dbgpHost,
+        listenerPort,
+        proxyHost: proxyConfig.host,
+        proxyPort: proxyConfig.port,
+      };
+    });
+  }
 
   // Connect MCP transport (stdio)
   const transport = new StdioServerTransport();
@@ -227,12 +293,11 @@ async function main() {
 
     logger.info('Shutting down...');
     sessionManager.closeAllSessions();
-    if (proxyIntegration?.client.isRegistered) {
-      const { client: dbgpProxyClient, config: proxyConfig } = proxyIntegration;
+    if (dbgpProxyClient?.isRegistered && proxyConfig) {
       try {
         // Unregister first so the proxy stops routing new sessions while this process is exiting.
         await dbgpProxyClient.unregister();
-        logger.info(`Removed DBGp proxy registration for IDE key '${proxyConfig.ideKey}'`);
+        logger.info(`Removed DBGp proxy registration for IDE key '${registeredIdeKey}'`);
       } catch (error) {
         logger.warn(
           `Failed to remove DBGp proxy registration: ${error instanceof Error ? error.message : String(error)}`
@@ -274,7 +339,9 @@ async function main() {
   logger.info('Xdebug MCP Server is ready');
   const waitMsg = config.dbgpSocketPath
     ? `Waiting for Xdebug connections on ${config.dbgpSocketPath}...`
-    : `Waiting for Xdebug connections on port ${config.dbgpPort}...`;
+    : listenerPort === null
+      ? 'Waiting for Xdebug connections...'
+      : `Waiting for Xdebug connections on port ${listenerPort}...`;
   logger.info(waitMsg);
 }
 

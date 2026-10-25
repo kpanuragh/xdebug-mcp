@@ -11,17 +11,26 @@ const ProxyIdeKeySchema = z.string().min(1).refine(
   (value) => !/[\0\s"\\]/.test(value),
   'DBGP_IDEKEY must not contain spaces, quotes, backslashes, or null bytes because the reference DBGp proxy does not parse escaped arguments.'
 );
+const ProxyIdeKeyPrefixSchema = z.string().refine(
+  (value) => !/[\0\s"\\]/.test(value),
+  'DBGP_IDEKEY_PREFIX must not contain spaces, quotes, backslashes, or null bytes because the reference DBGp proxy does not parse escaped arguments.'
+);
 
 const ProxyConfigSchema = z.object({
   host: z.string().min(1),
   port: z.number().int().positive(),
-  ideKey: ProxyIdeKeySchema,
+  ideKey: ProxyIdeKeySchema.optional(),
+  ideKeyMetaKey: z.string().min(1).optional(),
+  ideKeyPrefix: ProxyIdeKeyPrefixSchema.default(''),
   allowFallback: z.boolean().default(true),
-});
+}).refine(
+  (value) => (value.ideKey === undefined) !== (value.ideKeyMetaKey === undefined),
+  'Set exactly one of DBGP_IDEKEY or DBGP_IDEKEY_META_KEY.'
+);
 
 const ConfigSchema = z.object({
   // DBGp server settings
-  dbgpPort: z.number().int().positive().default(9003),
+  dbgpPort: z.number().int().nonnegative().default(9003),
   dbgpHost: z.string().default('0.0.0.0'),
   dbgpSocketPath: z.string().optional(),
   commandTimeout: z.number().int().positive().default(30000),
@@ -66,12 +75,13 @@ export function loadConfig(): Config {
   const proxyHost = process.env.DBGP_PROXY_HOST;
   const proxyPort = process.env.DBGP_PROXY_PORT;
   const proxyIdeKey = process.env.DBGP_IDEKEY;
+  const proxyIdeKeyMetaKey = process.env.DBGP_IDEKEY_META_KEY;
 
-  if (proxyHost || proxyPort || proxyIdeKey) {
+  if (proxyHost || proxyPort || proxyIdeKey || proxyIdeKeyMetaKey) {
     // Require the full proxy tuple together so startup never lands in a half-configured mode.
-    if (!proxyHost || !proxyPort || !proxyIdeKey) {
+    if (!proxyHost || !proxyPort || (!proxyIdeKey && !proxyIdeKeyMetaKey)) {
       throw new Error(
-        'DBGp proxy configuration is incomplete. Set DBGP_PROXY_HOST, DBGP_PROXY_PORT, and DBGP_IDEKEY together.'
+        'DBGp proxy configuration is incomplete. Set DBGP_PROXY_HOST, DBGP_PROXY_PORT, and either DBGP_IDEKEY or DBGP_IDEKEY_META_KEY.'
       );
     }
 
@@ -86,6 +96,8 @@ export function loadConfig(): Config {
       host: proxyHost,
       port: parseInt(proxyPort, 10),
       ideKey: proxyIdeKey,
+      ideKeyMetaKey: proxyIdeKeyMetaKey,
+      ideKeyPrefix: process.env.DBGP_IDEKEY_PREFIX || '',
       allowFallback: process.env.DBGP_PROXY_ALLOW_FALLBACK !== 'false',
     });
   }
