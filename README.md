@@ -114,9 +114,11 @@ Proxy mode requires:
 - `DBGP_PROXY_HOST` and `DBGP_PROXY_PORT`
 - a static `DBGP_IDEKEY`, or explicit opt-in with `DBGP_DYNAMIC_ROUTING=true` for dynamic session identities
 
-1. Configure Xdebug MCP once in your agent's settings.
-2. Start session A: its MCP server takes the configured port, and debugging works.
-3. Keep A open and start B: B tries the same port, gets `EADDRINUSE`, and its debugger fails to start or appears stuck. Additional sessions fail the same way.
+With Xdebug MCP configured to start automatically in each Codex or Claude Code session:
+
+1. Open session A: Xdebug MCP starts and reserves the configured port.
+2. Leave A open and start session B: its Xdebug MCP server fails to start because A already holds that port.
+3. Open more sessions: each hits the same conflict, even if A has never started debugging.
 
 The optional setup below gives each MCP process an OS-assigned callback port. One separately installed DBGp proxy receives PHP connections and routes them to the selected conversation using its IDE key. Users who opt into this approach configure the proxy and point PHP at it. This addresses parallel agent sessions, not merely concurrent tool calls within one session. Manually assigning distinct listener ports remains an alternative.
 

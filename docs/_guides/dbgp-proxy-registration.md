@@ -13,9 +13,11 @@ Proxy setup is optional. If you use one agent session and the default direct lis
 
 ## The Parallel-Session Problem
 
-1. Configure Xdebug MCP once in your agent's settings.
-2. Start session A: its MCP server takes the configured port, and debugging works.
-3. Keep A open and start B: B tries the same port, gets `EADDRINUSE`, and its debugger fails to start or appears stuck. Additional sessions fail the same way.
+With Xdebug MCP configured to start automatically in each Codex or Claude Code session:
+
+1. Open session A: Xdebug MCP starts and reserves the configured port.
+2. Leave A open and start session B: its Xdebug MCP server fails to start because A already holds that port.
+3. Open more sessions: each hits the same conflict, even if A has never started debugging.
 
 For automatic per-conversation routing, opt into dynamic routing, install a DBGp proxy, and configure PHP to connect to that proxy. Each conversation gets its own MCP process, callback port, and IDE key. The shared proxy delivers a PHP request only to the route matching its key. This is about concurrent agent sessions, not concurrent tool calls within one conversation. Manually assigning distinct listener ports remains an alternative.
 
