@@ -49,9 +49,9 @@ dbgpProxy -i 127.0.0.1:9001 -s 127.0.0.1:9003
 
 The `-i` port accepts registrations from MCP processes; the `-s` port accepts PHP/Xdebug connections. These addresses assume PHP, the proxy, and the MCP processes run on the same machine. Choose available ports and use the same values in the MCP configuration and PHP settings below.
 
-This command runs in the foreground and requires its terminal to stay open. For regular use on Linux, we recommend the systemd user service below. If you already run a shared proxy, reuse it and configure the MCP processes with its ports.
+This command runs in the foreground. Keep its terminal open or use the systemd user service below. Reuse an existing shared proxy if available.
 
-### Recommended: systemd User Service (Linux)
+### systemd User Service (Linux)
 
 The [example service file](../../examples/systemd/xdebug-dbgp-proxy.service) starts and supervises Xdebug's official proxy independently of agent sessions and terminals. It expects the executable at `~/.local/bin/dbgpProxy`, listens on local ports `9001` and `9003`, and restarts the proxy after two seconds if it fails. Systemd expands `%h` in `ExecStart` to your home directory.
 

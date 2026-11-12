@@ -124,7 +124,7 @@ The optional setup below uses Xdebug's existing [IDE keys](https://xdebug.org/do
 
 **Run one shared proxy for all sessions.** Install Xdebug's official `dbgpProxy` program and keep it running as a long-lived process, independently of Codex or Claude. Each MCP process registers its own route with that same proxy; closing an agent session removes its route during graceful shutdown while the proxy stays running for the others. `xdebug-mcp` does not bundle, install, or start the proxy.
 
-**On Linux, we recommend a systemd user service** so the proxy starts automatically at login and runs independently of your terminals. Use the [example service file](./examples/systemd/xdebug-dbgp-proxy.service) and [installation instructions](./docs/_guides/dbgp-proxy-registration.md#recommended-systemd-user-service-linux), including optional startup at boot. For a foreground command, see [Start the Shared Proxy](./docs/_guides/dbgp-proxy-registration.md#start-the-shared-proxy). Manually assigning distinct listener ports remains an alternative.
+A [systemd user service](./examples/systemd/xdebug-dbgp-proxy.service) can start the proxy at login and keep it independent of terminals. See [installation instructions](./docs/_guides/dbgp-proxy-registration.md#systemd-user-service-linux) for setup and optional startup at boot, or [Start the Shared Proxy](./docs/_guides/dbgp-proxy-registration.md#start-the-shared-proxy) for a foreground command. Manually assigning distinct listener ports remains an alternative.
 
 To opt in for Codex or Claude Code:
 
