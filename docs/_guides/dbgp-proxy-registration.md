@@ -30,8 +30,8 @@ If you just want a single local debugging listener, stay with the default direct
 | `DBGP_PROXY_SERVER_PORT` | No | Port where the proxy accepts PHP/Xdebug connections. Defaults to `9003`. |
 | `DBGP_IDEKEY` | Conditional | Static IDE key that the proxy should route to this MCP server. Mutually exclusive with `DBGP_IDEKEY_META_KEY`. |
 | `DBGP_IDEKEY_META_KEY` | No | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied. Defaults to `threadId` in dynamic mode and is mutually exclusive with `DBGP_IDEKEY`. |
-| `DBGP_IDEKEY_PREFIX` | No | Prefix added to a metadata-derived IDE key. |
-| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), continue in direct-listener mode if proxy registration fails. When `false`, fail startup instead. |
+| `DBGP_IDEKEY_PREFIX` | No | Prefix added to a dynamic IDE key. |
+| `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), continue in direct-listener mode if static startup registration fails. When `false`, fail startup instead. Dynamic registration failures are returned by `prepare_debug_route`. |
 
 Important constraints:
 
@@ -126,11 +126,13 @@ Dynamic clients can avoid pre-allocating callback ports. Codex works from reques
 1. The MCP server binds an OS-assigned callback port and exposes tools without registering a route.
 2. The client calls `prepare_debug_route`, optionally with an explicit `identifier` string.
 3. The tool uses the explicit identifier or configured request metadata and registers the actual callback port.
-4. The tool returns the proxy-advertised debugger endpoint and IDE key.
+4. The tool returns the configured proxy debugger endpoint (`DBGP_PROXY_HOST:DBGP_PROXY_SERVER_PORT`) and IDE key.
 5. PHP connects to that endpoint using the returned IDE key as `XDEBUG_TRIGGER`.
 6. Process shutdown removes the proxy registration.
 
 Codex supplies `threadId` on native MCP tool calls, so no identifier argument is needed. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
+
+For example, `prepare_debug_route({"identifier":"my-session-123"})` uses that identifier in preference to metadata. Identifiers must be unique across live MCP processes and cannot contain whitespace, quotes, backslashes, or null bytes. Each MCP process binds to its first successfully registered identifier; subsequent calls with that identifier reuse the route, while a different identifier is rejected.
 
 ## How Registration Works
 
