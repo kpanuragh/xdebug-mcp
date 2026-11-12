@@ -122,7 +122,7 @@ With Xdebug MCP configured to start automatically in each Codex or Claude Code s
 
 The optional setup below uses Xdebug's existing [IDE keys](https://xdebug.org/docs/step_debug#idekey) and [DBGp proxy](https://xdebug.org/docs/dbgpProxy). Each MCP process gets an OS-assigned callback port and an IDE key derived from its conversation ID. The official proxy routes PHP's debugging connection to the process registered under that key. This feature automates port allocation and registration through the existing proxy client; forwarding follows the [standard DBGp proxy protocol](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies).
 
-Users who opt in run the proxy separately and point PHP at it. This supports parallel agent sessions. Manually assigning distinct listener ports remains an alternative.
+**Run one shared proxy for all sessions.** Install Xdebug's official `dbgpProxy` program and keep it running as a long-lived process, independently of Codex or Claude. Each MCP process registers its own route with that same proxy; closing an agent session removes its route during graceful shutdown while the proxy stays running for the others. `xdebug-mcp` does not bundle, install, or start the proxy. See [Start the Shared Proxy](./docs/_guides/dbgp-proxy-registration.md#start-the-shared-proxy) for the command and background-service setup. Manually assigning distinct listener ports remains an alternative.
 
 To opt in for Codex or Claude Code:
 

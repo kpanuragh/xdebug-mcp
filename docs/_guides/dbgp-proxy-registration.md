@@ -7,7 +7,9 @@ permalink: /:collection/:name/
 
 # DBGp Proxy Registration Guide
 
-Use this mode when PHP should connect to a DBGp proxy, and the proxy should route matching IDE keys back to `xdebug-mcp`.
+This mode uses Xdebug's existing `dbgpProxy` program as **one long-lived process shared by all agent sessions**. PHP connects to that proxy, which forwards each debugging connection to the `xdebug-mcp` process registered under the matching IDE key.
+
+The proxy runs independently of Codex, Claude, and their MCP processes. Install and start it separately; `xdebug-mcp` registers routes with it but does not bundle, install, or launch the proxy. Closing one agent session removes its route during graceful shutdown while the shared proxy stays running for other sessions.
 
 Proxy setup is optional. If you use one agent session and the default direct listener works, keep it: no proxy, identity configuration, or `prepare_debug_route` call is required. Existing static proxy registration also works without dynamic routing.
 
@@ -25,7 +27,7 @@ For automatic per-conversation routing, opt into dynamic routing, install a DBGp
 
 Xdebug's [IDE key](https://xdebug.org/docs/step_debug#idekey) identifies the intended debugging client. Xdebug includes it in the DBGp connection's initial packet; the proxy [matches that key to a registered listener](https://xdebug.org/docs/dbgp#init-packet-handling). Here, `xdebug-mcp` fills the role of the IDE. In dynamic mode, the conversation ID supplies its key.
 
-Dynamic routing automates port allocation and key selection, reusing this project's existing proxy client for the standard [`proxyinit` and `proxystop` commands](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies). The separately installed [official DBGp proxy](https://xdebug.org/docs/dbgpProxy) handles forwarding. Its `-i` port accepts registrations (default `9001`); its `-s` port accepts PHP/Xdebug connections (default `9003`).
+Dynamic routing automates port allocation and key selection, reusing this project's existing proxy client for the standard [`proxyinit` and `proxystop` commands](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies). The separately installed [official DBGp proxy](https://xdebug.org/docs/dbgpProxy) handles forwarding.
 
 ## When to Use This
 
@@ -36,6 +38,20 @@ Choose DBGp proxy registration when:
 - PHP should keep connecting to the proxy, while each `xdebug-mcp` instance listens on its own callback port
 
 If you just want a single local debugging listener, stay with the default direct TCP setup in [`mcp-config.example.json`](../../mcp-config.example.json).
+
+## Start the Shared Proxy
+
+Install the [official DBGp proxy](https://xdebug.org/docs/dbgpProxy) for your platform. With `dbgpProxy` on your PATH, start one instance for all local agent sessions:
+
+```sh
+dbgpProxy -i 127.0.0.1:9001 -s 127.0.0.1:9003
+```
+
+The `-i` port accepts registrations from MCP processes; the `-s` port accepts PHP/Xdebug connections. These addresses assume PHP, the proxy, and the MCP processes run on the same machine. Choose available ports and use the same values in the MCP configuration and PHP settings below.
+
+This command runs in the foreground. Keep its terminal open, or configure a background service such as a systemd user service on Linux to run the same command using the executable's absolute path. The service starts and supervises the official proxy; it does not need to implement routing. All agent sessions reuse that running instance.
+
+If the proxy restarts, restart the MCP processes so they register their routes again. Existing MCP processes currently cache registration state and do not automatically restore it after a proxy restart.
 
 ## Environment Variables
 
