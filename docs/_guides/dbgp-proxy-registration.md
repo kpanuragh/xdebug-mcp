@@ -21,6 +21,12 @@ With Xdebug MCP configured to start automatically in each Codex or Claude Code s
 
 For automatic per-conversation routing, opt into dynamic routing, install a DBGp proxy, and configure PHP to connect to that proxy. Each conversation gets its own MCP process, callback port, and IDE key. The shared proxy delivers a PHP request only to the route matching its key. This is about concurrent agent sessions, not concurrent tool calls within one conversation. Manually assigning distinct listener ports remains an alternative.
 
+## Uses Xdebug's Existing IDE Keys and Proxy
+
+Xdebug's [IDE key](https://xdebug.org/docs/step_debug#idekey) identifies the intended debugging client. Xdebug includes it in the DBGp connection's initial packet; the proxy [matches that key to a registered listener](https://xdebug.org/docs/dbgp#init-packet-handling). Here, `xdebug-mcp` fills the role of the IDE. In dynamic mode, the conversation ID supplies its key.
+
+Dynamic routing automates port allocation and key selection, reusing this project's existing proxy client for the standard [`proxyinit` and `proxystop` commands](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies). The separately installed [official DBGp proxy](https://xdebug.org/docs/dbgpProxy) handles forwarding. Its `-i` port accepts registrations (default `9001`); its `-s` port accepts PHP/Xdebug connections (default `9003`).
+
 ## When to Use This
 
 Choose DBGp proxy registration when:
@@ -189,23 +195,25 @@ For example, `prepare_debug_route({"identifier":"my-session-123"})` uses that id
 
 1. Call `prepare_debug_route({})` when native identity is available. Otherwise supply a stable, unique `identifier` once and reuse it for that MCP process. Do not pass literal `"{}"` as an identifier.
 2. Check for a successful result before launching PHP. Use `set_breakpoint` to store pending breakpoints.
-3. Set PHP's `xdebug.client_host` to `route.proxyHost`, `xdebug.client_port` to `route.proxyPort`, and `XDEBUG_TRIGGER` to `trigger`. The OS-assigned `route.listenerPort` is the proxy's callback endpoint; `DBGP_PROXY_PORT` is the registration control port. Neither is the PHP-facing proxy port.
+3. Enable `xdebug.mode=debug` and [`xdebug.start_with_request=trigger`](https://xdebug.org/docs/step_debug#start_with_request). Set PHP's `xdebug.client_host` to `route.proxyHost`, `xdebug.client_port` to `route.proxyPort`, and `XDEBUG_TRIGGER` to `trigger`. The OS-assigned `route.listenerPort` is the proxy's callback endpoint; `DBGP_PROXY_PORT` is the registration control port. Neither is the PHP-facing proxy port.
 4. Trigger PHP, inspect the paused session with the debugging tools, and continue or stop execution when finished.
 5. If preparation reports that the process is already registered under another identity, reconnect using a separate MCP process for the new conversation. Do not work around the error by borrowing another conversation's identifier or skipping preparation.
 
 ## How Registration Works
 
+Registration uses the [DBGp proxy commands defined in section 5.3](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies):
+
 1. `xdebug-mcp` starts its local TCP listener on `XDEBUG_HOST:XDEBUG_PORT`.
-2. If `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY` are present, it opens a control connection to the DBGp proxy.
-3. It sends `proxyinit -p <XDEBUG_PORT> -k <DBGP_IDEKEY> -m 1`.
-4. The proxy stores that registration and routes matching IDE-key sessions back to `xdebug-mcp`.
-5. On shutdown, `xdebug-mcp` sends `proxystop -k <DBGP_IDEKEY>`.
+2. With a proxy configured, static mode registers at startup using `DBGP_IDEKEY`; dynamic mode waits for `prepare_debug_route` to resolve the conversation's key.
+3. It sends `proxyinit -p <actual-listener-port> -k <ide-key> -m 1`. The `-m 1` flag declares support for multiple PHP debug sessions for that registered client.
+4. The proxy stores the key-to-listener mapping and routes matching connections back to `xdebug-mcp`.
+5. On graceful shutdown, `xdebug-mcp` sends `proxystop -k <ide-key>`.
 
 Depending on your environment, registration can add a small startup delay, so give the MCP server a moment to finish booting before expecting the proxy to route sessions to it.
 
 ## PHP/Xdebug Side in Proxy Mode
 
-When using a DBGp proxy, PHP should point to the proxy, not directly to `xdebug-mcp`:
+Set [`xdebug.client_host`](https://xdebug.org/docs/step_debug#client_host) and [`xdebug.client_port`](https://xdebug.org/docs/step_debug#client_port) to the proxy's PHP-facing endpoint:
 
 ```ini
 [xdebug]
@@ -216,18 +224,16 @@ xdebug.client_host=127.0.0.1
 xdebug.client_port=9003
 ```
 
-Then trigger the request with the IDE key registered for `xdebug-mcp`, for example:
+In this [trigger configuration](https://xdebug.org/docs/step_debug#start_with_request), start the request with the IDE key registered for `xdebug-mcp`, for example:
 
 - `XDEBUG_TRIGGER=xdebug-warp`
 - `XDEBUG_TRIGGER=xdebug-claude`
 - `XDEBUG_TRIGGER=xdebug-codex`
 
-You can use the same values with `XDEBUG_SESSION` if that matches your workflow.
+For dynamic routing, use the returned `trigger` value. You can supply `XDEBUG_TRIGGER` as an environment variable or an HTTP GET, POST, or cookie value. `XDEBUG_SESSION` is also supported as a legacy step-debugging trigger. If [`xdebug.trigger_value`](https://xdebug.org/docs/step_debug#trigger_value) is configured, it must accept the supplied value.
+
+The trigger starts debugging; the IDE key selects the proxy destination. The workflow above uses the same value for both. For an always-on configuration (`xdebug.start_with_request=yes`), explicitly set PHP's [`xdebug.idekey`](https://xdebug.org/docs/step_debug#idekey) to the route's `ideKey` for each PHP process.
 
 ## DBGp Proxy Binary / Download
 
-The official Xdebug DBGp proxy documentation, source, and download guidance are here:
-
-- https://xdebug.org/docs/dbgpProxy
-
-Use that page for installation details and the current recommended binary or source distribution method for the proxy.
+See the official [DBGp Proxy Tool documentation](https://xdebug.org/docs/dbgpProxy) for installation and command-line options, and [Xdebug downloads](https://xdebug.org/download#dbgpProxy) for binaries and source.

@@ -120,7 +120,9 @@ With Xdebug MCP configured to start automatically in each Codex or Claude Code s
 2. Leave A open and start session B: its Xdebug MCP server fails to start because A already holds that port.
 3. Open more sessions: each hits the same conflict, even if A has never started debugging.
 
-The optional setup below gives each MCP process an OS-assigned callback port. One separately installed DBGp proxy receives PHP connections and routes them to the selected conversation using its IDE key. Users who opt into this approach configure the proxy and point PHP at it. This addresses parallel agent sessions, not merely concurrent tool calls within one session. Manually assigning distinct listener ports remains an alternative.
+The optional setup below uses Xdebug's existing [IDE keys](https://xdebug.org/docs/step_debug#idekey) and [DBGp proxy](https://xdebug.org/docs/dbgpProxy). Each MCP process gets an OS-assigned callback port and an IDE key derived from its conversation ID. The official proxy routes PHP's debugging connection to the process registered under that key. This feature automates port allocation and registration through the existing proxy client; forwarding follows the [standard DBGp proxy protocol](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies).
+
+Users who opt in run the proxy separately and point PHP at it. This supports parallel agent sessions. Manually assigning distinct listener ports remains an alternative.
 
 To opt in for Codex or Claude Code:
 
@@ -146,7 +148,7 @@ To opt in for Codex or Claude Code:
 
 In dynamic mode, each conversation must have its own `xdebug-mcp` process. A shared DBGp proxy is supported, but one MCP process cannot isolate different conversations: its breakpoints and debug sessions are shared process state. A second identifier is rejected by `prepare_debug_route`. Multiple PHP debug sessions for the same conversation remain supported. `prepare_debug_route` is exposed only after dynamic routing is enabled.
 
-Call `prepare_debug_route` before setting pending breakpoints and starting PHP. Use its returned `trigger` as `XDEBUG_TRIGGER` and `route.proxyHost`/`route.proxyPort` as PHP's `xdebug.client_host`/`xdebug.client_port`. Do not point PHP at `route.listenerPort` or the proxy's control port. No identifier is generated when none is available; the tool returns an error.
+Call `prepare_debug_route` before setting pending breakpoints and starting PHP. Enable `xdebug.mode=debug` and [`xdebug.start_with_request=trigger`](https://xdebug.org/docs/step_debug#start_with_request), then use the returned `trigger` as `XDEBUG_TRIGGER` and `route.proxyHost`/`route.proxyPort` as PHP's `xdebug.client_host`/`xdebug.client_port`. Do not point PHP at `route.listenerPort` or the proxy's control port. No identifier is generated when none is available; the tool returns an error.
 
 | Client | How the route gets its identity | Validation |
 |--------|--------------------------------|------------|
