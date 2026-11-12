@@ -257,10 +257,12 @@ async function main() {
   registerAllTools(mcpServer, toolsContext);
   if (proxyConfig?.ideKeyMetaKey) {
     registerRoutingTools(mcpServer, async (explicitIdentifier, meta) => {
-      const identity = explicitIdentifier ?? meta?.[proxyConfig.ideKeyMetaKey!];
+      const identity = explicitIdentifier
+        ?? meta?.[proxyConfig.ideKeyMetaKey!]
+        ?? process.env.CLAUDE_CODE_SESSION_ID;
       if (typeof identity !== 'string' || identity.length === 0) {
         throw new Error(
-          `Pass a non-empty identifier or provide MCP metadata '${proxyConfig.ideKeyMetaKey}'.`
+          `Pass a non-empty identifier, provide MCP metadata '${proxyConfig.ideKeyMetaKey}', or launch from Claude Code with CLAUDE_CODE_SESSION_ID.`
         );
       }
 

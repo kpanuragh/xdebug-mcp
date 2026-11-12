@@ -109,9 +109,9 @@ Proxy mode requires:
 - TCP listener mode for `xdebug-mcp` (not `XDEBUG_SOCKET_PATH`)
 - either a unique callback port for `XDEBUG_PORT`, or `XDEBUG_PORT=0` to let the OS assign one
 - `DBGP_PROXY_HOST` and `DBGP_PROXY_PORT`
-- optionally, a static `DBGP_IDEKEY`; without it, dynamic routing defaults to Codex's `threadId` metadata
+- optionally, a static `DBGP_IDEKEY`; without it, dynamic routing uses Codex's `threadId` metadata or Claude Code's `CLAUDE_CODE_SESSION_ID` environment variable
 
-For parallel Codex threads, derive the IDE key from request metadata:
+For parallel Codex or Claude Code sessions, derive the IDE key from the client's session identity:
 
 ```json
 {
@@ -124,7 +124,7 @@ For parallel Codex threads, derive the IDE key from request metadata:
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
         "DBGP_PROXY_SERVER_PORT": "9003",
-        "DBGP_IDEKEY_PREFIX": "xdebug-codex-",
+        "DBGP_IDEKEY_PREFIX": "xdebug-",
         "DBGP_PROXY_ALLOW_FALLBACK": "false"
       }
     }
@@ -132,7 +132,7 @@ For parallel Codex threads, derive the IDE key from request metadata:
 }
 ```
 
-Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value plus the proxy endpoint PHP should use. Current Codex clients attach `threadId` to native MCP tool calls. Other clients can configure `DBGP_IDEKEY_META_KEY` or pass `identifier` directly to the tool.
+Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value plus the proxy endpoint PHP should use. Codex supplies `threadId` in native MCP calls; Claude Code supplies `CLAUDE_CODE_SESSION_ID` to stdio MCP servers. Both can call the tool without an identifier argument. Other clients can configure `DBGP_IDEKEY_META_KEY` or pass `identifier` directly to the tool.
 
 See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
 

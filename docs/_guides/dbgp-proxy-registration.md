@@ -103,7 +103,7 @@ Keep PHP/Xdebug pointed at the proxy's client-facing port, then trigger the targ
 
 ## Dynamic Registration for Parallel Client Sessions
 
-Dynamic clients can avoid pre-allocating callback ports. Codex works from request metadata automatically; other clients may supply an identifier explicitly:
+Dynamic clients can avoid pre-allocating callback ports. Codex and Claude Code supply native session identities automatically; other clients may supply an identifier explicitly:
 
 ```json
 {
@@ -115,7 +115,7 @@ Dynamic clients can avoid pre-allocating callback ports. Codex works from reques
         "XDEBUG_HOST": "127.0.0.1",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
-        "DBGP_IDEKEY_PREFIX": "xdebug-codex-",
+        "DBGP_IDEKEY_PREFIX": "xdebug-",
         "DBGP_PROXY_ALLOW_FALLBACK": "false"
       }
     }
@@ -125,12 +125,14 @@ Dynamic clients can avoid pre-allocating callback ports. Codex works from reques
 
 1. The MCP server binds an OS-assigned callback port and exposes tools without registering a route.
 2. The client calls `prepare_debug_route`, optionally with an explicit `identifier` string.
-3. The tool uses the explicit identifier or configured request metadata and registers the actual callback port.
+3. The tool uses the explicit identifier, configured request metadata, or Claude Code session environment variable (in that order) and registers the actual callback port.
 4. The tool returns the configured proxy debugger endpoint (`DBGP_PROXY_HOST:DBGP_PROXY_SERVER_PORT`) and IDE key.
 5. PHP connects to that endpoint using the returned IDE key as `XDEBUG_TRIGGER`.
 6. Process shutdown removes the proxy registration.
 
-Codex supplies `threadId` on native MCP tool calls, so no identifier argument is needed. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
+Codex supplies `threadId` on native MCP tool calls. Claude Code supplies `CLAUDE_CODE_SESSION_ID` to stdio MCP servers. Both can call `prepare_debug_route({})` without an identifier argument. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
+
+Claude Code's [environment variable reference](https://code.claude.com/docs/en/env-vars) documents that its MCP subprocess retains the ID from startup: `/clear` does not update it, and `--continue` or `--resume` without an explicit ID may expose an initial startup ID. Restart the MCP server when switching conversations to get a new route identity. Explicit `--resume <session-id>` receives the resumed ID; this was fixed in Claude Code 2.1.163.
 
 For example, `prepare_debug_route({"identifier":"my-session-123"})` uses that identifier in preference to metadata. Identifiers must be unique across live MCP processes and cannot contain whitespace, quotes, backslashes, or null bytes. Each MCP process binds to its first successfully registered identifier; subsequent calls with that identifier reuse the route, while a different identifier is rejected.
 

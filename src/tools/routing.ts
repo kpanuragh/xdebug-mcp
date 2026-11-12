@@ -22,10 +22,10 @@ export function registerRoutingTools(
 ): void {
   server.tool(
     'prepare_debug_route',
-    'Prepare this MCP client\'s DBGp proxy route using an explicit identifier or client metadata. Call before starting PHP.',
+    'Prepare this MCP client\'s DBGp proxy route. Codex and Claude Code supply their session identity automatically; other clients can pass an identifier. Call before starting PHP.',
     {
       identifier: z.string().min(1).optional().describe(
-        'Stable identifier for this client session. Overrides configured MCP metadata when supplied.'
+        'Optional identity override for clients without a native session ID. Omit this property in Codex and Claude Code to use their automatic identity.'
       ),
     },
     async ({ identifier }, extra) => {
