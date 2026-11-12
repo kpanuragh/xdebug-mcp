@@ -18,6 +18,7 @@ import { registerBreakpointTools } from './breakpoints.js';
 import { registerExecutionTools } from './execution.js';
 import { registerInspectionTools } from './inspection.js';
 import { registerAdvancedTools, AdvancedToolsContext } from './advanced.js';
+export { registerRoutingTools } from './routing.js';
 
 export interface ToolsContext {
   sessionManager: SessionManager;

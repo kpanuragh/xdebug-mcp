@@ -103,14 +103,65 @@ When debugging PHP in Docker containers, you need path mappings to translate con
 
 ### With DBGp Proxy Registration
 
+Ordinary single-session debugging needs no proxy, session identifier, or route-preparation call. The default direct listener and existing static proxy configurations keep their behavior. Dynamic session routing is optional and disabled by default.
+
 If you already use a DBGp proxy, keep [`mcp-config.example.json`](./mcp-config.example.json) as the default direct-listener example and start from [`mcp-config.proxy.example.json`](./mcp-config.proxy.example.json) for proxy registration.
 
 Proxy mode requires:
-- TCP listener mode for `xdebug-mcp` (not `XDEBUG_SOCKET_PATH`)
-- a unique callback port such as `9006`, `9007`, or `9008` for `XDEBUG_PORT`
-- `DBGP_PROXY_HOST`, `DBGP_PROXY_PORT`, and `DBGP_IDEKEY`
 
-See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
+- TCP listener mode for `xdebug-mcp` (not `XDEBUG_SOCKET_PATH`)
+- either a unique callback port for `XDEBUG_PORT`, or `XDEBUG_PORT=0` to let the OS assign one
+- `DBGP_PROXY_HOST` and `DBGP_PROXY_PORT`
+- a static `DBGP_IDEKEY`, or explicit opt-in with `DBGP_DYNAMIC_ROUTING=true` for dynamic session identities
+
+With Xdebug MCP configured to start automatically in each Codex or Claude Code session:
+
+1. Open session A: Xdebug MCP starts and reserves the configured port.
+2. Leave A open and start session B: its Xdebug MCP server fails to start because A already holds that port.
+3. Open more sessions: each hits the same conflict, even if A has never started debugging.
+
+The optional setup below uses Xdebug's existing [IDE keys](https://xdebug.org/docs/step_debug#idekey) and [DBGp proxy](https://xdebug.org/docs/dbgpProxy). Each MCP process gets an OS-assigned callback port and an IDE key derived from its conversation ID. The official proxy routes PHP's debugging connection to the process registered under that key. This feature automates port allocation and registration through the existing proxy client; forwarding follows the [standard DBGp proxy protocol](https://xdebug.org/docs/dbgp#just-in-time-debugging-and-debugger-proxies).
+
+**Run one shared proxy for all sessions.** Install Xdebug's official `dbgpProxy` program and keep it running as a long-lived process, independently of Codex or Claude. Each MCP process registers its own route with that same proxy; closing an agent session removes its route during graceful shutdown while the proxy stays running for the others. `xdebug-mcp` does not bundle, install, or start the proxy.
+
+A [systemd user service](./examples/systemd/xdebug-dbgp-proxy.service) can start the proxy at login and keep it independent of terminals. See [installation instructions](./docs/_guides/dbgp-proxy-registration.md#systemd-user-service-linux) for setup and optional startup at boot, or [Start the Shared Proxy](./docs/_guides/dbgp-proxy-registration.md#start-the-shared-proxy) for a foreground command. Manually assigning distinct listener ports remains an alternative.
+
+To opt in for Codex or Claude Code:
+
+```json
+{
+  "mcpServers": {
+    "xdebug": {
+      "command": "xdebug-mcp",
+      "env": {
+        "XDEBUG_HOST": "127.0.0.1",
+        "XDEBUG_PORT": "0",
+        "DBGP_DYNAMIC_ROUTING": "true",
+        "DBGP_PROXY_HOST": "127.0.0.1",
+        "DBGP_PROXY_PORT": "9001",
+        "DBGP_PROXY_SERVER_PORT": "9003",
+        "DBGP_IDEKEY_PREFIX": "xdebug-",
+        "DBGP_PROXY_ALLOW_FALLBACK": "false"
+      }
+    }
+  }
+}
+```
+
+In dynamic mode, each conversation must have its own `xdebug-mcp` process. A shared DBGp proxy is supported, but one MCP process cannot isolate different conversations: its breakpoints and debug sessions are shared process state. A second identifier is rejected by `prepare_debug_route`. Multiple PHP debug sessions for the same conversation remain supported. `prepare_debug_route` is exposed only after dynamic routing is enabled.
+
+Call `prepare_debug_route` before setting pending breakpoints and starting PHP. Enable `xdebug.mode=debug` and [`xdebug.start_with_request=trigger`](https://xdebug.org/docs/step_debug#start_with_request), then use the returned `trigger` as `XDEBUG_TRIGGER` and `route.proxyHost`/`route.proxyPort` as PHP's `xdebug.client_host`/`xdebug.client_port`. Do not point PHP at `route.listenerPort` or the proxy's control port. No identifier is generated when none is available; the tool returns an error.
+
+| Client | How the route gets its identity | Validation |
+|--------|--------------------------------|------------|
+| Codex | Call with `{}`; uses `_meta.threadId` by default | Native client and PHP debugging tested |
+| Claude Code | Call with `{}`; falls back to native `CLAUDE_CODE_SESSION_ID` | Native client and PHP debugging tested; ID remains fixed for the MCP process lifetime |
+| OpenCode | Set `DBGP_IDEKEY_META_KEY=ai.opencode/sessionID`, then call with `{}` | Documented client metadata; native integration untested; separate MCP process per conversation required |
+| Other MCP clients | Set `DBGP_IDEKEY_META_KEY` to a supplied metadata field, or pass `{"identifier":"unique-session-id"}` | Generic metadata and explicit-identifier paths tested |
+
+Identity precedence is explicit `identifier`, configured metadata field, then Claude Code's environment variable. An explicit identifier must stay constant for that conversation and be unique across live MCP processes.
+
+See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md#client-compatibility-and-connection-lifetime) for client configuration, connection-lifetime constraints, and the agent workflow.
 
 ## PHP/Xdebug Configuration
 
@@ -366,9 +417,17 @@ Use capture_request_context to see $_GET, $_POST, $_SESSION, cookies, and header
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode) |
+| `XDEBUG_PORT` | `9003` | Port to listen for Xdebug connections (TCP mode); use `0` for an OS-assigned callback port |
 | `XDEBUG_HOST` | `0.0.0.0` | Host to bind (TCP mode) |
 | `XDEBUG_SOCKET_PATH` | - | Unix domain socket path (e.g., `/tmp/xdebug.sock`). When set, uses Unix socket instead of TCP |
+| `DBGP_PROXY_HOST` | - | DBGp proxy control host |
+| `DBGP_PROXY_PORT` | - | DBGp proxy control port |
+| `DBGP_PROXY_SERVER_PORT` | `9003` | DBGp proxy port where PHP/Xdebug connects |
+| `DBGP_DYNAMIC_ROUTING` | `false` | Opt into session-based proxy routing and expose `prepare_debug_route`; requires a configured proxy and no static `DBGP_IDEKEY` |
+| `DBGP_IDEKEY` | - | Static proxy IDE key; mutually exclusive with `DBGP_IDEKEY_META_KEY` |
+| `DBGP_IDEKEY_META_KEY` | `threadId` in dynamic mode | MCP request metadata field used when no explicit `identifier` is supplied; requires `DBGP_DYNAMIC_ROUTING=true` |
+| `DBGP_IDEKEY_PREFIX` | - | Prefix added to a dynamic IDE key |
+| `DBGP_PROXY_ALLOW_FALLBACK` | `true` | Continue in direct-listener mode if static startup registration fails |
 | `COMMAND_TIMEOUT` | `30000` | Command timeout in milliseconds |
 | `PATH_MAPPINGS` | - | JSON object mapping container to host paths |
 | `MAX_DEPTH` | `3` | Max depth for variable inspection |

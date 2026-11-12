@@ -76,7 +76,7 @@ export class DbgpServer extends EventEmitter {
         });
       } else {
         const host = this.config.host || '0.0.0.0';
-        const port = this.config.port || 9003;
+        const port = this.config.port ?? 9003;
         this.server.listen(port, host, () => {
           logger.info(`DBGp server listening on ${host}:${port}`);
           this.emit('listening', `${host}:${port}`);
