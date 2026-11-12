@@ -13,9 +13,9 @@ Proxy setup is optional. If you use one agent session and the default direct lis
 
 ## The Parallel-Session Problem
 
-You configure one Xdebug MCP entry in your agent's settings. When session A starts, it launches `xdebug-mcp`, which listens on the configured port. Debugging in A works.
-
-You leave A running and start session B. The agent launches another `xdebug-mcp` with the same configuration, so B tries to listen on the port A already owns. That bind fails with `EADDRINUSE`. Depending on the client, B's MCP startup may look stuck, show a connection failure, or expose no debugger tools. Every additional session using that port has the same problem.
+1. Configure Xdebug MCP once in your agent's settings.
+2. Start session A: its MCP server takes the configured port, and debugging works.
+3. Keep A open and start B: B tries the same port, gets `EADDRINUSE`, and its debugger fails to start or appears stuck. Additional sessions fail the same way.
 
 For automatic per-conversation routing, opt into dynamic routing, install a DBGp proxy, and configure PHP to connect to that proxy. Each conversation gets its own MCP process, callback port, and IDE key. The shared proxy delivers a PHP request only to the route matching its key. This is about concurrent agent sessions, not concurrent tool calls within one conversation. Manually assigning distinct listener ports remains an alternative.
 
