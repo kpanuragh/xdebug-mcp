@@ -49,7 +49,35 @@ dbgpProxy -i 127.0.0.1:9001 -s 127.0.0.1:9003
 
 The `-i` port accepts registrations from MCP processes; the `-s` port accepts PHP/Xdebug connections. These addresses assume PHP, the proxy, and the MCP processes run on the same machine. Choose available ports and use the same values in the MCP configuration and PHP settings below.
 
-This command runs in the foreground. Keep its terminal open, or configure a background service such as a systemd user service on Linux to run the same command using the executable's absolute path. The service starts and supervises the official proxy; it does not need to implement routing. All agent sessions reuse that running instance.
+This command runs in the foreground and requires its terminal to stay open. For regular use on Linux, we recommend the systemd user service below. If you already run a shared proxy, reuse it and configure the MCP processes with its ports.
+
+### Recommended: systemd User Service (Linux)
+
+The [example service file](../../examples/systemd/xdebug-dbgp-proxy.service) starts and supervises Xdebug's official proxy independently of agent sessions and terminals. It expects the executable at `~/.local/bin/dbgpProxy`, listens on local ports `9001` and `9003`, and restarts the proxy after two seconds if it fails. Systemd expands `%h` in `ExecStart` to your home directory.
+
+From a repository checkout, replace `/path/to/downloaded/dbgpProxy` with the official binary downloaded for your platform, then install the executable and user service:
+
+```sh
+install -Dm755 /path/to/downloaded/dbgpProxy "$HOME/.local/bin/dbgpProxy"
+install -Dm644 examples/systemd/xdebug-dbgp-proxy.service \
+  "$HOME/.config/systemd/user/xdebug-dbgp-proxy.service"
+```
+
+Adjust `ExecStart` in the installed service if you use a different executable path or ports. Keep those ports aligned with `DBGP_PROXY_PORT`, `DBGP_PROXY_SERVER_PORT`, and PHP's configuration. Stop any foreground proxy using the same ports before starting the service:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user enable --now xdebug-dbgp-proxy.service
+systemctl --user status xdebug-dbgp-proxy.service
+```
+
+This starts the proxy now and enables it for future user sessions, normally at login. For startup at boot and continued operation after logout, optionally enable [user lingering](https://www.freedesktop.org/software/systemd/man/latest/loginctl.html):
+
+```sh
+loginctl enable-linger
+```
+
+All agent sessions reuse this one service. The service runs the official proxy executable; routing remains the proxy's responsibility. To inspect its logs, run `journalctl --user -u xdebug-dbgp-proxy.service`.
 
 If the proxy restarts, restart the MCP processes so they register their routes again. Existing MCP processes currently cache registration state and do not automatically restore it after a proxy restart.
 

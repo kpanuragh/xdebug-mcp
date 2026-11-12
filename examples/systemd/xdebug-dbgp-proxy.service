@@ -1,0 +1,13 @@
+# Install as ~/.config/systemd/user/xdebug-dbgp-proxy.service.
+# Place the official proxy at ~/.local/bin/dbgpProxy, or adjust ExecStart.
+[Unit]
+Description=Xdebug DBGp proxy for native MCP clients
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/dbgpProxy -i 127.0.0.1:9001 -s 127.0.0.1:9003
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
