@@ -26,7 +26,7 @@ const ProxyConfigSchema = z.object({
   allowFallback: z.boolean().default(true),
 }).refine(
   (value) => (value.ideKey === undefined) !== (value.ideKeyMetaKey === undefined),
-  'Set exactly one of DBGP_IDEKEY or DBGP_IDEKEY_META_KEY.'
+  'Set DBGP_IDEKEY for static proxy registration, or enable DBGP_DYNAMIC_ROUTING=true without DBGP_IDEKEY.'
 );
 
 const ConfigSchema = z.object({
@@ -77,7 +77,15 @@ export function loadConfig(): Config {
   const proxyPort = process.env.DBGP_PROXY_PORT;
   const proxyServerPort = process.env.DBGP_PROXY_SERVER_PORT;
   const proxyIdeKey = process.env.DBGP_IDEKEY;
-  const proxyIdeKeyMetaKey = process.env.DBGP_IDEKEY_META_KEY;
+  const dynamicRouting = z.enum(['true', 'false']).default('false')
+    .parse(process.env.DBGP_DYNAMIC_ROUTING) === 'true';
+  const proxyIdeKeyMetaKey = dynamicRouting
+    ? process.env.DBGP_IDEKEY_META_KEY || 'threadId'
+    : undefined;
+
+  if (!dynamicRouting && process.env.DBGP_IDEKEY_META_KEY) {
+    throw new Error('DBGP_IDEKEY_META_KEY requires DBGP_DYNAMIC_ROUTING=true.');
+  }
 
   if (proxyHost || proxyPort || proxyServerPort || proxyIdeKey || proxyIdeKeyMetaKey) {
     // Require the full proxy tuple together so startup never lands in a half-configured mode.
@@ -99,7 +107,7 @@ export function loadConfig(): Config {
       port: parseInt(proxyPort, 10),
       serverPort: parseInt(proxyServerPort || '9003', 10),
       ideKey: proxyIdeKey,
-      ideKeyMetaKey: proxyIdeKey ? proxyIdeKeyMetaKey : proxyIdeKeyMetaKey || 'threadId',
+      ideKeyMetaKey: proxyIdeKeyMetaKey,
       ideKeyPrefix: process.env.DBGP_IDEKEY_PREFIX || '',
       allowFallback: process.env.DBGP_PROXY_ALLOW_FALLBACK !== 'false',
     });

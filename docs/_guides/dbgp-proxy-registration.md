@@ -9,6 +9,16 @@ permalink: /:collection/:name/
 
 Use this mode when PHP should connect to a DBGp proxy, and the proxy should route matching IDE keys back to `xdebug-mcp`.
 
+Proxy setup is optional. If you use one agent session and the default direct listener works, keep it: no proxy, identity configuration, or `prepare_debug_route` call is required. Existing static proxy registration also works without dynamic routing.
+
+## The Parallel-Session Problem
+
+You configure one Xdebug MCP entry in your agent's settings. When session A starts, it launches `xdebug-mcp`, which listens on the configured port. Debugging in A works.
+
+You leave A running and start session B. The agent launches another `xdebug-mcp` with the same configuration, so B tries to listen on the port A already owns. That bind fails with `EADDRINUSE`. Depending on the client, B's MCP startup may look stuck, show a connection failure, or expose no debugger tools. Every additional session using that port has the same problem.
+
+For automatic per-conversation routing, opt into dynamic routing, install a DBGp proxy, and configure PHP to connect to that proxy. Each conversation gets its own MCP process, callback port, and IDE key. The shared proxy delivers a PHP request only to the route matching its key. This is about concurrent agent sessions, not concurrent tool calls within one conversation. Manually assigning distinct listener ports remains an alternative.
+
 ## When to Use This
 
 Choose DBGp proxy registration when:
@@ -28,8 +38,9 @@ If you just want a single local debugging listener, stay with the default direct
 | `DBGP_PROXY_HOST` | Yes | Hostname or IP address of the DBGp proxy. Example: `127.0.0.1`. |
 | `DBGP_PROXY_PORT` | Yes | Port where the DBGp proxy accepts `proxyinit` and `proxystop`. Example: `9001`. |
 | `DBGP_PROXY_SERVER_PORT` | No | Port where the proxy accepts PHP/Xdebug connections. Defaults to `9003`. |
-| `DBGP_IDEKEY` | Conditional | Static IDE key that the proxy should route to this MCP server. Mutually exclusive with `DBGP_IDEKEY_META_KEY`. |
-| `DBGP_IDEKEY_META_KEY` | No | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied. Defaults to `threadId` in dynamic mode and is mutually exclusive with `DBGP_IDEKEY`. |
+| `DBGP_DYNAMIC_ROUTING` | No | Set to `true` to opt into session-based registration and expose `prepare_debug_route`. Defaults to `false`. Requires a proxy and no static `DBGP_IDEKEY`. |
+| `DBGP_IDEKEY` | In static mode | Static IDE key that the proxy should route to this MCP server. Cannot be combined with `DBGP_DYNAMIC_ROUTING=true`. |
+| `DBGP_IDEKEY_META_KEY` | No | MCP request metadata field used by `prepare_debug_route` when no explicit `identifier` is supplied. Defaults to `threadId` when `DBGP_DYNAMIC_ROUTING=true`; setting it without that opt-in is an error. |
 | `DBGP_IDEKEY_PREFIX` | No | Prefix added to a dynamic IDE key. |
 | `DBGP_PROXY_ALLOW_FALLBACK` | No | When `true` (default), continue in direct-listener mode if static startup registration fails. When `false`, fail startup instead. Dynamic registration failures are returned by `prepare_debug_route`. |
 
@@ -101,9 +112,11 @@ Suggested values:
 
 Keep PHP/Xdebug pointed at the proxy's client-facing port, then trigger the target agent using the matching IDE key.
 
-## Dynamic Registration for Parallel Client Sessions
+## Optional Dynamic Registration for Parallel Client Sessions
 
-Dynamic clients can avoid pre-allocating callback ports. Codex and Claude Code supply native session identities automatically; other clients may supply an identifier explicitly:
+Dynamic routing is disabled by default. Enable it explicitly with `DBGP_DYNAMIC_ROUTING=true` only when you want per-conversation proxy routes. Install and start the proxy separately, configure the ports below, and point PHP at the proxy's debugger-facing port. Without this opt-in, the route-preparation tool is not exposed and native client IDs impose no new requirement on ordinary debugging.
+
+Once enabled, dynamic clients can avoid pre-allocating callback ports. Codex and Claude Code supply native session identities automatically; other clients may supply an identifier explicitly:
 
 ```json
 {
@@ -113,6 +126,7 @@ Dynamic clients can avoid pre-allocating callback ports. Codex and Claude Code s
       "env": {
         "XDEBUG_PORT": "0",
         "XDEBUG_HOST": "127.0.0.1",
+        "DBGP_DYNAMIC_ROUTING": "true",
         "DBGP_PROXY_HOST": "127.0.0.1",
         "DBGP_PROXY_PORT": "9001",
         "DBGP_IDEKEY_PREFIX": "xdebug-",
