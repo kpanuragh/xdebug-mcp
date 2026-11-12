@@ -130,11 +130,52 @@ Dynamic clients can avoid pre-allocating callback ports. Codex and Claude Code s
 5. PHP connects to that endpoint using the returned IDE key as `XDEBUG_TRIGGER`.
 6. Process shutdown removes the proxy registration.
 
-Codex supplies `threadId` on native MCP tool calls. Claude Code supplies `CLAUDE_CODE_SESSION_ID` to stdio MCP servers. Both can call `prepare_debug_route({})` without an identifier argument. Other clients can pass `identifier` directly or attach a stable string under `DBGP_IDEKEY_META_KEY`.
+### Client Compatibility and Connection Lifetime
 
-Claude Code's [environment variable reference](https://code.claude.com/docs/en/env-vars) documents that its MCP subprocess retains the ID from startup: `/clear` does not update it, and `--continue` or `--resume` without an explicit ID may expose an initial startup ID. Restart the MCP server when switching conversations to get a new route identity. Explicit `--resume <session-id>` receives the resumed ID; this was fixed in Claude Code 2.1.163.
+Each conversation must own a separate `xdebug-mcp` process. The external DBGp proxy can be shared, but breakpoint state and debug sessions inside an MCP process are not separated by conversation metadata. The first successful route preparation pins that process to one identity. Another call with the same identity reuses the route; a different identity is rejected. This still allows multiple PHP debug sessions within one conversation.
+
+Do not assume that registering a stdio server gives every conversation a separate process. Check the client's MCP connection lifetime, especially in hosts that reuse connections across conversations or directories. Disabling an optional connection pool does not necessarily create a process per conversation.
+
+#### Codex and Claude Code
+
+Codex supplies `threadId` on native MCP tool calls. Claude Code supplies `CLAUDE_CODE_SESSION_ID` to stdio MCP servers. Both can call `prepare_debug_route({})` without an identifier argument. Native tool calls and real PHP breakpoint/inspection/continue workflows have been tested with both clients.
+
+Claude Code's [environment variable reference](https://code.claude.com/docs/en/env-vars) documents that its MCP subprocess retains the ID from startup: `/clear` does not update it, and `--continue` or `--resume` without an explicit ID may expose an initial startup ID. Restart Claude Code when switching conversations if a fresh route identity is required. Explicit `--resume <session-id>` receives the resumed ID; this was fixed in Claude Code 2.1.163.
+
+#### OpenCode
+
+OpenCode's [MCP context documentation](https://opencode.ai/docs/mcp-servers#context) describes `_meta["ai.opencode/sessionID"]`. In the local MCP server's `environment` configuration, add:
+
+```json
+{
+  "DBGP_IDEKEY_META_KEY": "ai.opencode/sessionID",
+  "DBGP_IDEKEY_PREFIX": "xdebug-opencode-"
+}
+```
+
+Keep the other dynamic proxy settings shown above. The agent can then call `prepare_debug_route({})`; the existing metadata-field setting reads the session ID without an explicit argument. This is a configuration example based on OpenCode's documentation, not a verified native OpenCode integration.
+
+OpenCode documents [MCP connections per directory and optional sharing across directories](https://opencode.ai/docs/mcp-servers#shared-connections). That does not establish a separate MCP process per conversation. If different conversations use the same `xdebug-mcp` process, the second identity will be rejected. Use a deployment that actually gives each conversation its own MCP process. Supporting different identities within one shared process would require separate route listeners, breakpoint state, and debug-session managers, which this mode does not implement.
+
+#### Other MCP Clients and Explicit Identifiers
+
+If a client supplies a stable string in request `_meta`, set `DBGP_IDEKEY_META_KEY` to that exact field name. Otherwise pass `identifier` explicitly. Identity sources are considered in this order:
+
+1. The tool's explicit `identifier` argument.
+2. The configured request metadata field (default `threadId`).
+3. The native `CLAUDE_CODE_SESSION_ID` environment variable.
+
+Missing or invalid identities return a tool error. The server does not invent a random conversation ID. An explicit identifier is a fallback for clients without native identity support, not a way to switch an already prepared process to another conversation.
 
 For example, `prepare_debug_route({"identifier":"my-session-123"})` uses that identifier in preference to metadata. Identifiers must be unique across live MCP processes and cannot contain whitespace, quotes, backslashes, or null bytes. Each MCP process binds to its first successfully registered identifier; subsequent calls with that identifier reuse the route, while a different identifier is rejected.
+
+### Agent Workflow
+
+1. Call `prepare_debug_route({})` when native identity is available. Otherwise supply a stable, unique `identifier` once and reuse it for that MCP process. Do not pass literal `"{}"` as an identifier.
+2. Check for a successful result before launching PHP. Use `set_breakpoint` to store pending breakpoints.
+3. Set PHP's `xdebug.client_host` to `route.proxyHost`, `xdebug.client_port` to `route.proxyPort`, and `XDEBUG_TRIGGER` to `trigger`. The OS-assigned `route.listenerPort` is the proxy's callback endpoint; `DBGP_PROXY_PORT` is the registration control port. Neither is the PHP-facing proxy port.
+4. Trigger PHP, inspect the paused session with the debugging tools, and continue or stop execution when finished.
+5. If preparation reports that the process is already registered under another identity, reconnect using a separate MCP process for the new conversation. Do not work around the error by borrowing another conversation's identifier or skipping preparation.
 
 ## How Registration Works
 

@@ -132,9 +132,20 @@ For parallel Codex or Claude Code sessions, derive the IDE key from the client's
 }
 ```
 
-Call `prepare_debug_route` before starting PHP. It registers the actual callback port and returns the `XDEBUG_TRIGGER` value plus the proxy endpoint PHP should use. Codex supplies `threadId` in native MCP calls; Claude Code supplies `CLAUDE_CODE_SESSION_ID` to stdio MCP servers. Both can call the tool without an identifier argument. Other clients can configure `DBGP_IDEKEY_META_KEY` or pass `identifier` directly to the tool.
+Each conversation must have its own `xdebug-mcp` process. A shared DBGp proxy is supported, but one MCP process cannot isolate different conversations: its breakpoints and debug sessions are shared process state. A second identifier is rejected by `prepare_debug_route`. Multiple PHP debug sessions for the same conversation remain supported.
 
-See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md) for the full setup, multi-agent examples, and PHP/Xdebug proxy configuration.
+Call `prepare_debug_route` before setting pending breakpoints and starting PHP. Use its returned `trigger` as `XDEBUG_TRIGGER` and `route.proxyHost`/`route.proxyPort` as PHP's `xdebug.client_host`/`xdebug.client_port`. Do not point PHP at `route.listenerPort` or the proxy's control port. No identifier is generated when none is available; the tool returns an error.
+
+| Client | How the route gets its identity | Validation |
+|--------|--------------------------------|------------|
+| Codex | Call with `{}`; uses `_meta.threadId` by default | Native client and PHP debugging tested |
+| Claude Code | Call with `{}`; falls back to native `CLAUDE_CODE_SESSION_ID` | Native client and PHP debugging tested; ID remains fixed for the MCP process lifetime |
+| OpenCode | Set `DBGP_IDEKEY_META_KEY=ai.opencode/sessionID`, then call with `{}` | Documented client metadata; native integration untested; separate MCP process per conversation required |
+| Other MCP clients | Set `DBGP_IDEKEY_META_KEY` to a supplied metadata field, or pass `{"identifier":"unique-session-id"}` | Generic metadata and explicit-identifier paths tested |
+
+Identity precedence is explicit `identifier`, configured metadata field, then Claude Code's environment variable. An explicit identifier must stay constant for that conversation and be unique across live MCP processes.
+
+See the [DBGp Proxy Registration Guide](./docs/_guides/dbgp-proxy-registration.md#client-compatibility-and-connection-lifetime) for client configuration, connection-lifetime constraints, and the agent workflow.
 
 ## PHP/Xdebug Configuration
 
